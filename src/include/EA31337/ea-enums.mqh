@@ -279,10 +279,10 @@ enum ENUM_ACC_CONDITION {
   C_WBAL_GT_MONTHLY    = 20, // Max. weekly balance > max. monthly
   C_ACC_IN_TREND       = 21, // Account in trend
   C_ACC_IN_NON_TREND   = 22, // Account is against trend
-  C_ACC_CDAY_IN_PROFIT = 23, // Current day in profit
-  C_ACC_CDAY_IN_LOSS   = 24, // Current day in loss
-  C_ACC_PDAY_IN_PROFIT = 25, // Previous day in profit
-  C_ACC_PDAY_IN_LOSS   = 26, // Previous day in loss
+  //C_ACC_CDAY_IN_PROFIT = 23, // Current day in profit
+  //C_ACC_CDAY_IN_LOSS   = 24, // Current day in loss
+  //C_ACC_PDAY_IN_PROFIT = 25, // Previous day in profit
+  //C_ACC_PDAY_IN_LOSS   = 26, // Previous day in loss
   C_ACC_MAX_ORDERS     = 27, // Max orders reached
 };
 
@@ -381,10 +381,10 @@ enum ENUM_REASON_TYPE {
   R_WBAL_GT_MONTHLY     = C_WBAL_GT_MONTHLY, // Max. weekly balance > max. monthly.
   R_ACC_IN_TREND        = C_ACC_IN_TREND, // Account in trend.
   R_ACC_IN_NON_TREND    = C_ACC_IN_NON_TREND, // Account is against trend.
-  R_ACC_CDAY_IN_PROFIT  = C_ACC_CDAY_IN_PROFIT, // Current day in profit.
-  R_ACC_CDAY_IN_LOSS    = C_ACC_CDAY_IN_LOSS, // Current day in loss.
-  R_ACC_PDAY_IN_PROFIT  = C_ACC_PDAY_IN_PROFIT, // Previous day in profit.
-  R_ACC_PDAY_IN_LOSS    = C_ACC_PDAY_IN_LOSS, // Previous day in loss.
+  //R_ACC_CDAY_IN_PROFIT  = C_ACC_CDAY_IN_PROFIT, // Current day in profit.
+  //R_ACC_CDAY_IN_LOSS    = C_ACC_CDAY_IN_LOSS, // Current day in loss.
+  //R_ACC_PDAY_IN_PROFIT  = C_ACC_PDAY_IN_PROFIT, // Previous day in profit.
+  //R_ACC_PDAY_IN_LOSS    = C_ACC_PDAY_IN_LOSS, // Previous day in loss.
   R_ACC_MAX_ORDERS      = C_ACC_MAX_ORDERS, // Maximum orders reached.
   R_OPPOSITE_SIGNAL, // Opposite signal.
   R_CLOSE_SIGNAL,    // Close method signal.

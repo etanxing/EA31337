@@ -5,7 +5,11 @@
 //+------------------------------------------------------------------+
 
 // EA defines.
+#ifdef __release__
 #define ea_version "1.079"
+#else
+#define ea_version "1.078"
+#endif
 #define ea_desc    "Multi-strategy trading robot."
 #define ea_link    "https://github.com/EA31337"
 #define ea_author  "kenorb"

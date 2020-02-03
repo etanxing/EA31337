@@ -15,26 +15,27 @@ Log *logger;
 Mail *mail;
 Market *market;
 Stats *total_stats, *hourly_stats;
-SummaryReport *summary_report; // For summary report.
-Ticker *ticker; // For parsing ticks.
+SummaryReport *summary_report;  // For summary report.
+Ticker *ticker;                 // For parsing ticks.
 Terminal *terminal;
 Trade *trade[FINAL_ENUM_TIMEFRAMES_INDEX];
 
 // Market/session variables.
 double pip_size, ea_lot_size;
 double last_ask, last_bid;
-uint order_freezelevel; // Order freeze level in points.
-double curr_spread; // Broker current spread in pips.
-double curr_trend; // Current trend.
-double ea_risk_margin_per_order, ea_risk_margin_total; // Risk marigin in percent.
-uint pts_per_pip; // Number points per pip.
-int gmt_offset = 0; // Current difference between GMT time and the local computer time in seconds, taking into account switch to winter or summer time. Depends on the time settings of your computer.
+uint order_freezelevel;                                 // Order freeze level in points.
+double curr_spread;                                     // Broker current spread in pips.
+double curr_trend;                                      // Current trend.
+double ea_risk_margin_per_order, ea_risk_margin_total;  // Risk marigin in percent.
+uint pts_per_pip;                                       // Number points per pip.
+int gmt_offset = 0;  // Current difference between GMT time and the local computer time in seconds, taking into account
+                     // switch to winter or summer time. Depends on the time settings of your computer.
 // double total_sl, total_tp; // Total SL/TP points.
 
 // Account variables.
 string account_type;
-double init_balance; // Initial account balance.
-long init_spread; // Initial spread.
+double init_balance;  // Initial account balance.
+long init_spread;     // Initial spread.
 
 // State variables.
 bool session_initiated = false;
@@ -43,17 +44,18 @@ bool session_active = false;
 // Time-based variables.
 // Bar time: initial, current and last one to check if bar has been changed since the last time.
 datetime curr_bar_time;
-datetime time_current = (int) EMPTY_VALUE;
+datetime time_current = (int)EMPTY_VALUE;
 int hour_of_day, day_of_week, day_of_month, day_of_year, month, year;
 datetime last_order_time = 0;
-int last_history_check = 0; // Last ticket position processed.
+int last_history_check = 0;  // Last ticket position processed.
 datetime last_traded;
 
 // Strategy variables.
 int info[FINAL_STRATEGY_TYPE_ENTRY][FINAL_STRATEGY_INFO_ENTRY];
-double conf[FINAL_STRATEGY_TYPE_ENTRY][FINAL_STRATEGY_VALUE_ENTRY], stats[FINAL_STRATEGY_TYPE_ENTRY][FINAL_STRATEGY_STAT_ENTRY];
+double conf[FINAL_STRATEGY_TYPE_ENTRY][FINAL_STRATEGY_VALUE_ENTRY],
+    stats[FINAL_STRATEGY_TYPE_ENTRY][FINAL_STRATEGY_STAT_ENTRY];
 int open_orders[FINAL_STRATEGY_TYPE_ENTRY], closed_orders[FINAL_STRATEGY_TYPE_ENTRY];
-int tickets[]; // List of tickets to process.
+int tickets[];  // List of tickets to process.
 int worse_strategy[FINAL_STAT_PERIOD_TYPE_ENTRY], best_strategy[FINAL_ENUM_TIMEFRAMES_INDEX];
 
 // EA variables.
@@ -101,7 +103,7 @@ double atr[FINAL_ENUM_TIMEFRAMES_INDEX][FINAL_ENUM_INDICATOR_INDEX];
 double awesome[FINAL_ENUM_TIMEFRAMES_INDEX][FINAL_ENUM_INDICATOR_INDEX];
 double bands[FINAL_ENUM_TIMEFRAMES_INDEX][FINAL_ENUM_INDICATOR_INDEX][FINAL_BANDS_LINE_ENTRY];
 double bwmfi[FINAL_ENUM_TIMEFRAMES_INDEX][FINAL_ENUM_INDICATOR_INDEX];
-double bpower[FINAL_ENUM_TIMEFRAMES_INDEX][FINAL_ENUM_INDICATOR_INDEX][ORDER_TYPE_SELL+1];
+double bpower[FINAL_ENUM_TIMEFRAMES_INDEX][FINAL_ENUM_INDICATOR_INDEX][ORDER_TYPE_SELL + 1];
 double cci[FINAL_ENUM_TIMEFRAMES_INDEX][FINAL_ENUM_INDICATOR_INDEX];
 double demarker[FINAL_ENUM_TIMEFRAMES_INDEX][FINAL_ENUM_INDICATOR_INDEX];
 double envelopes[FINAL_ENUM_TIMEFRAMES_INDEX][FINAL_ENUM_INDICATOR_INDEX][FINAL_LO_UP_LINE_ENTRY];
@@ -285,7 +287,7 @@ int OnInit() {
   session_initiated &= InitVariables();
   session_initiated &= InitStrategies();
   session_initiated &= InitializeConditions();
-  session_initiated &= CheckHistory();
+  //session_initiated &= CheckHistory();
 
   if (!Terminal::IsRealtime()) {
     // When testing, we need to simulate real MODE_STOPLEVEL = 30 (as it's in real account), in demo it's 0.
@@ -536,32 +538,36 @@ bool EA_Trade(Trade *_trade) {
     strat = ((Strategy *) strats.GetByIndex(sid));
 
     if (strat.GetTf() == tf && strat.IsEnabled() && !strat.IsSuspended()) {
-      if (strat.SignalOpen(ORDER_TYPE_BUY)) {
+      //strat.ProcessSignals(); // @todo
+      if (strat.SignalOpen(ORDER_TYPE_BUY, strat.GetSignalOpenMethod(), strat.GetSignalOpenLevel())) {
         _cmd = ORDER_TYPE_BUY;
-      } else if (strat.SignalOpen(ORDER_TYPE_SELL)) {
+      } else if (strat.SignalOpen(ORDER_TYPE_SELL, strat.GetSignalOpenMethod(), strat.GetSignalOpenLevel())) {
         _cmd = ORDER_TYPE_SELL;
       } else {
         _cmd = EMPTY;
       }
 
       if (!DisableCloseConditions) {
-        if (CheckMarketEvent(strat.Chart(), ORDER_TYPE_BUY,  strat.GetSignalCloseMethod1())) {
-          CloseOrdersByType(ORDER_TYPE_SELL, strat.GetId(), strat.GetSignalCloseMethod1(), CloseConditionOnlyProfitable);
+        if (CheckMarketEvent(strat.Chart(), ORDER_TYPE_BUY,  strat.GetSignalCloseMethod())) {
+          CloseOrdersByType(ORDER_TYPE_SELL, strat.GetId(), (ENUM_MARKET_EVENT) ((Dict<string, int> *) strat.GetDataSI()).GetByKey("CloseCondition"), CloseConditionOnlyProfitable);
         }
-        if (CheckMarketEvent(strat.Chart(), ORDER_TYPE_SELL, strat.GetSignalCloseMethod1())) {
-          CloseOrdersByType(ORDER_TYPE_BUY,  strat.GetId(), strat.GetSignalCloseMethod1(), CloseConditionOnlyProfitable);
+        if (CheckMarketEvent(strat.Chart(), ORDER_TYPE_SELL, strat.GetSignalCloseMethod())) {
+          CloseOrdersByType(ORDER_TYPE_BUY,  strat.GetId(), (ENUM_MARKET_EVENT) ((Dict<string, int> *) strat.GetDataSI()).GetByKey("CloseCondition"), CloseConditionOnlyProfitable);
         }
       }
 
-      if (strat.GetSignalOpenMethod1() != 0) {
-        if (_cmd == ORDER_TYPE_BUY  && !CheckMarketCondition1(strat.Chart(), ORDER_TYPE_BUY,  strat.GetSignalOpenMethod1())) _cmd = EMPTY;
-        if (_cmd == ORDER_TYPE_SELL && !CheckMarketCondition1(strat.Chart(), ORDER_TYPE_SELL, strat.GetSignalOpenMethod1())) _cmd = EMPTY;
+      if (strat.GetSignalOpenMethod() != 0) {
+        if (_cmd == ORDER_TYPE_BUY  && !CheckMarketCondition1(strat.Chart(), ORDER_TYPE_BUY,  strat.GetSignalOpenMethod())) _cmd = EMPTY;
+        if (_cmd == ORDER_TYPE_SELL && !CheckMarketCondition1(strat.Chart(), ORDER_TYPE_SELL, strat.GetSignalOpenMethod())) _cmd = EMPTY;
       }
 
+      /*
       if (Object::IsDynamic(trade[Chart::TfToIndex(TrendPeriod)]) && strat.GetSignalOpenMethod2() != 0) {
         if (_cmd == ORDER_TYPE_BUY  && CheckMarketCondition1(trade[Chart::TfToIndex(TrendPeriod)].Chart(), ORDER_TYPE_SELL, strat.GetSignalOpenMethod2(), false)) _cmd = EMPTY;
         if (_cmd == ORDER_TYPE_SELL && CheckMarketCondition1(trade[Chart::TfToIndex(TrendPeriod)].Chart(), ORDER_TYPE_BUY,  strat.GetSignalOpenMethod2(), false)) _cmd = EMPTY;
       }
+      */
+
 
       if (_cmd != EMPTY) {
         order_placed &= ExecuteOrder(_cmd, strat);
@@ -602,104 +608,7 @@ bool UpdateIndicator(Chart *_chart, ENUM_INDICATOR_TYPE type) {
   ENUM_TIMEFRAMES tf = _chart.GetTf();
   uint index = _chart.TfToIndex();
   string symbol = _chart.GetSymbol();
-  int shift;
-  // double envelopes_deviation;
-  uint adx_period;
-  switch (tf) {
-    case PERIOD_M1: adx_period = ADX_Period_M1; break;
-    case PERIOD_M5: adx_period = ADX_Period_M5; break;
-    case PERIOD_M15: adx_period = ADX_Period_M15; break;
-    default:
-    case PERIOD_M30: adx_period = ADX_Period_M30; break;
-  }
-  uint atr_period;
-  switch (tf) {
-    case PERIOD_M1: atr_period = ATR_Period_M1; break;
-    case PERIOD_M5: atr_period = ATR_Period_M5; break;
-    case PERIOD_M15: atr_period = ATR_Period_M15; break;
-    default:
-    case PERIOD_M30: atr_period = ATR_Period_M30; break;
-  }
-  double bands_deviation;
-  switch (tf) {
-    case PERIOD_M1: bands_deviation = Bands_Deviation_M1; break;
-    case PERIOD_M5: bands_deviation = Bands_Deviation_M5; break;
-    case PERIOD_M15: bands_deviation = Bands_Deviation_M15; break;
-    default:
-    case PERIOD_M30: bands_deviation = Bands_Deviation_M30; break;
-  }
-  uint bands_period;
-  switch (tf) {
-    case PERIOD_M1: bands_period = Bands_Period_M1; break;
-    case PERIOD_M5: bands_period = Bands_Period_M5; break;
-    case PERIOD_M15: bands_period = Bands_Period_M15; break;
-    default:
-    case PERIOD_M30: bands_period = Bands_Period_M30; break;
-  }
-  uint cci_period;
-  switch (tf) {
-    case PERIOD_M1: cci_period = CCI_Period_M1; break;
-    case PERIOD_M5: cci_period = CCI_Period_M5; break;
-    case PERIOD_M15: cci_period = CCI_Period_M15; break;
-    default:
-    case PERIOD_M30: cci_period = CCI_Period_M30; break;
-  }
-  uint dm_period;
-  switch (tf) {
-    case PERIOD_M1: dm_period = DeMarker_Period_M1; break;
-    case PERIOD_M5: dm_period = DeMarker_Period_M5; break;
-    case PERIOD_M15: dm_period = DeMarker_Period_M15; break;
-    default:
-    case PERIOD_M30: dm_period = DeMarker_Period_M30; break;
-  }
-  double env_deviation;
-  switch (tf) {
-    case PERIOD_M1: env_deviation = Envelopes_Deviation_M1; break;
-    case PERIOD_M5: env_deviation = Envelopes_Deviation_M5; break;
-    case PERIOD_M15: env_deviation = Envelopes_Deviation_M15; break;
-    default:
-    case PERIOD_M30: env_deviation = Envelopes_Deviation_M30; break;
-  }
-  uint env_period;
-  switch (tf) {
-    case PERIOD_M1: env_period = Envelopes_MA_Period_M1; break;
-    case PERIOD_M5: env_period = Envelopes_MA_Period_M5; break;
-    case PERIOD_M15: env_period = Envelopes_MA_Period_M15; break;
-    default:
-    case PERIOD_M30: env_period = Envelopes_MA_Period_M30; break;
-  }
-  uint force_period;
-  switch (tf) {
-    case PERIOD_M1: force_period = Force_Period_M1; break;
-    case PERIOD_M5: force_period = Force_Period_M5; break;
-    case PERIOD_M15: force_period = Force_Period_M15; break;
-    default:
-    case PERIOD_M30: force_period = Force_Period_M30; break;
-  }
-  uint mfi_period;
-  switch (tf) {
-    case PERIOD_M1: mfi_period = MFI_Period_M1; break;
-    case PERIOD_M5: mfi_period = MFI_Period_M5; break;
-    case PERIOD_M15: mfi_period = MFI_Period_M15; break;
-    default:
-    case PERIOD_M30: mfi_period = MFI_Period_M30; break;
-  }
-  uint rsi_period;
-  switch (tf) {
-    case PERIOD_M1: rsi_period = RSI_Period_M1; break;
-    case PERIOD_M5: rsi_period = RSI_Period_M5; break;
-    case PERIOD_M15: rsi_period = RSI_Period_M15; break;
-    default:
-    case PERIOD_M30: rsi_period = RSI_Period_M30; break;
-  }
-  uint wpr_period;
-  switch (tf) {
-    case PERIOD_M1: wpr_period = WPR_Period_M1; break;
-    case PERIOD_M5: wpr_period = WPR_Period_M5; break;
-    case PERIOD_M15: wpr_period = WPR_Period_M15; break;
-    default:
-    case PERIOD_M30: wpr_period = WPR_Period_M30; break;
-  }
+  int shift = 0;
 
   #ifdef __profiler__ PROFILER_START #endif
   switch (type) {
@@ -713,9 +622,9 @@ bool UpdateIndicator(Chart *_chart, ENUM_INDICATOR_TYPE type) {
       break;
     case INDI_ADX: // Calculates the Average Directional Movement Index indicator.
       for (i = 0; i < FINAL_ENUM_INDICATOR_INDEX; i++) {
-        adx[index][i][LINE_MAIN_ADX] = Indi_ADX::iADX(symbol, tf, adx_period, ADX_Applied_Price, LINE_MAIN_ADX, i + ADX_Shift); // Base indicator line
-        adx[index][i][LINE_PLUSDI]   = Indi_ADX::iADX(symbol, tf, adx_period, ADX_Applied_Price, LINE_PLUSDI, i + ADX_Shift);   // +DI indicator line
-        adx[index][i][LINE_MINUSDI]  = Indi_ADX::iADX(symbol, tf, adx_period, ADX_Applied_Price, LINE_MINUSDI, i + ADX_Shift);  // -DI indicator line
+        adx[index][i][LINE_MAIN_ADX] = Indi_ADX::iADX(symbol, tf, ADX_Period, ADX_Applied_Price, LINE_MAIN_ADX, i + ADX_Shift); // Base indicator line
+        adx[index][i][LINE_PLUSDI]   = Indi_ADX::iADX(symbol, tf, ADX_Period, ADX_Applied_Price, LINE_PLUSDI, i + ADX_Shift);   // +DI indicator line
+        adx[index][i][LINE_MINUSDI]  = Indi_ADX::iADX(symbol, tf, ADX_Period, ADX_Applied_Price, LINE_MINUSDI, i + ADX_Shift);  // -DI indicator line
       }
       break;
     case INDI_ALLIGATOR: // Calculates the Alligator indicator.
@@ -739,7 +648,7 @@ bool UpdateIndicator(Chart *_chart, ENUM_INDICATOR_TYPE type) {
       break;
     case INDI_ATR: // Calculates the Average True Range indicator.
       for (i = 0; i < FINAL_ENUM_INDICATOR_INDEX; i++) {
-        atr[index][i] = Indi_ATR::iATR(symbol, tf, atr_period, i + ATR_Shift);
+        atr[index][i] = Indi_ATR::iATR(symbol, tf, ATR_Period, i + ATR_Shift);
       }
       break;
     case INDI_AO: // Calculates the Awesome oscillator.
@@ -749,9 +658,9 @@ bool UpdateIndicator(Chart *_chart, ENUM_INDICATOR_TYPE type) {
       break;
     case INDI_BANDS: // Calculates the Bollinger Bands indicator.
       for (i = 0; i < FINAL_ENUM_INDICATOR_INDEX; i++) {
-        bands[index][i][BAND_BASE]  = Indi_Bands::iBands(symbol, tf, bands_period, bands_deviation, Bands_HShift, Bands_Applied_Price, BAND_BASE,  i + Bands_Shift);
-        bands[index][i][BAND_UPPER] = Indi_Bands::iBands(symbol, tf, bands_period, bands_deviation, Bands_HShift, Bands_Applied_Price, BAND_UPPER, i + Bands_Shift);
-        bands[index][i][BAND_LOWER] = Indi_Bands::iBands(symbol, tf, bands_period, bands_deviation, Bands_HShift, Bands_Applied_Price, BAND_LOWER, i + Bands_Shift);
+        bands[index][i][BAND_BASE]  = Indi_Bands::iBands(symbol, tf, Bands_Period, Bands_Deviation, Bands_HShift, Bands_Applied_Price, BAND_BASE,  i + Bands_Shift);
+        bands[index][i][BAND_UPPER] = Indi_Bands::iBands(symbol, tf, Bands_Period, Bands_Deviation, Bands_HShift, Bands_Applied_Price, BAND_UPPER, i + Bands_Shift);
+        bands[index][i][BAND_LOWER] = Indi_Bands::iBands(symbol, tf, Bands_Period, Bands_Deviation, Bands_HShift, Bands_Applied_Price, BAND_LOWER, i + Bands_Shift);
       }
       success = (bool)bands[index][CURR][BAND_BASE];
       #ifdef __MQL4__
@@ -780,13 +689,13 @@ bool UpdateIndicator(Chart *_chart, ENUM_INDICATOR_TYPE type) {
       break;
     case INDI_CCI: // Calculates the Commodity Channel Index indicator.
       for (i = 0; i < FINAL_ENUM_INDICATOR_INDEX; i++) {
-        cci[index][i] = Indi_CCI::iCCI(symbol, tf, cci_period, CCI_Applied_Price, i + CCI_Shift);
+        cci[index][i] = Indi_CCI::iCCI(symbol, tf, CCI_Period, CCI_Applied_Price, i + CCI_Shift);
       }
       success = (bool) cci[index][CURR];
       break;
     case INDI_DEMARKER: // Calculates the DeMarker indicator.
       for (i = 0; i < FINAL_ENUM_INDICATOR_INDEX; i++) {
-        demarker[index][i] = Indi_DeMarker::iDeMarker(symbol, tf, dm_period, i + DeMarker_Shift);
+        demarker[index][i] = Indi_DeMarker::iDeMarker(symbol, tf, DeMarker_Period, i + DeMarker_Shift);
       }
       // success = (bool) demarker[index][CURR] + demarker[index][PREV] + demarker[index][FAR];
       // PrintFormat("Period: %d, DeMarker: %g", period, demarker[index][CURR]);
@@ -796,9 +705,9 @@ bool UpdateIndicator(Chart *_chart, ENUM_INDICATOR_TYPE type) {
       break;
     case INDI_ENVELOPES: // Calculates the Envelopes indicator.
       for (i = 0; i < FINAL_ENUM_INDICATOR_INDEX; i++) {
-        envelopes[index][i][LINE_MAIN]  = Indi_Envelopes::iEnvelopes(symbol, tf, env_period, Envelopes_MA_Method, Envelopes_MA_Shift, Envelopes_Applied_Price, env_deviation, LINE_MAIN,  i + Envelopes_Shift);
-        envelopes[index][i][LINE_UPPER] = Indi_Envelopes::iEnvelopes(symbol, tf, env_period, Envelopes_MA_Method, Envelopes_MA_Shift, Envelopes_Applied_Price, env_deviation, LINE_UPPER, i + Envelopes_Shift);
-        envelopes[index][i][LINE_LOWER] = Indi_Envelopes::iEnvelopes(symbol, tf, env_period, Envelopes_MA_Method, Envelopes_MA_Shift, Envelopes_Applied_Price, env_deviation, LINE_LOWER, i + Envelopes_Shift);
+        envelopes[index][i][LINE_MAIN]  = Indi_Envelopes::iEnvelopes(symbol, tf, Envelopes_MA_Period, Envelopes_MA_Method, Envelopes_MA_Shift, Envelopes_Applied_Price, Envelopes_Deviation, LINE_MAIN,  i + Envelopes_Shift);
+        envelopes[index][i][LINE_UPPER] = Indi_Envelopes::iEnvelopes(symbol, tf, Envelopes_MA_Period, Envelopes_MA_Method, Envelopes_MA_Shift, Envelopes_Applied_Price, Envelopes_Deviation, LINE_UPPER, i + Envelopes_Shift);
+        envelopes[index][i][LINE_LOWER] = Indi_Envelopes::iEnvelopes(symbol, tf, Envelopes_MA_Period, Envelopes_MA_Method, Envelopes_MA_Shift, Envelopes_Applied_Price, Envelopes_Deviation, LINE_LOWER, i + Envelopes_Shift);
       }
       success = (bool) envelopes[index][CURR][LINE_MAIN];
       #ifdef __MQL4__
@@ -807,7 +716,7 @@ bool UpdateIndicator(Chart *_chart, ENUM_INDICATOR_TYPE type) {
       break;
     case INDI_FORCE: // Calculates the Force Index indicator.
       for (i = 0; i < FINAL_ENUM_INDICATOR_INDEX; i++) {
-        force[index][i] = Indi_Force::iForce(symbol, tf, force_period, Force_MA_Method, Force_Applied_Price, i + Force_Shift);
+        force[index][i] = Indi_Force::iForce(symbol, tf, Force_Period, Force_MA_Method, Force_Applied_Price, i + Force_Shift);
       }
       success = (bool) force[index][CURR];
       break;
@@ -843,9 +752,9 @@ bool UpdateIndicator(Chart *_chart, ENUM_INDICATOR_TYPE type) {
       // Calculate MA Fast.
       for (i = 0; i < FINAL_ENUM_INDICATOR_INDEX; i++) {
         shift = i + MA_Shift;
-        ma_fast[index][i]   = Indi_MA::iMA(symbol, tf, MA_Period_Fast,   MA_Shift_Fast,   MA_Method, MA_Applied_Price, shift);
-        ma_medium[index][i] = Indi_MA::iMA(symbol, tf, MA_Period_Medium, MA_Shift_Medium, MA_Method, MA_Applied_Price, shift);
-        ma_slow[index][i]   = Indi_MA::iMA(symbol, tf, MA_Period_Slow,   MA_Shift_Slow,   MA_Method, MA_Applied_Price, shift);
+        ma_fast[index][i]   = Indi_MA::iMA(symbol, tf, MA3_Period_Fast,   MA3_MA_Shift_Fast,   MA_Method, MA_Applied_Price, shift);
+        ma_medium[index][i] = Indi_MA::iMA(symbol, tf, MA3_Period_Medium, MA3_MA_Shift_Medium, MA_Method, MA_Applied_Price, shift);
+        ma_slow[index][i]   = Indi_MA::iMA(symbol, tf, MA3_Period_Slow,   MA3_MA_Shift_Slow,   MA_Method, MA_Applied_Price, shift);
         /*
         if (tf == Period() && i < FINAL_ENUM_INDICATOR_INDEX - 1) {
           Draw::TLine(StringFormat("%s%s%d", symbol, "MA Fast", i),   ma_fast[index][i],   ma_fast[index][i+1],    iTime(NULL, 0, shift), iTime(NULL, 0, shift+1), clrBlue);
@@ -875,7 +784,7 @@ bool UpdateIndicator(Chart *_chart, ENUM_INDICATOR_TYPE type) {
       break;
     case INDI_MFI: // Calculates the Money Flow Index indicator.
       for (i = 0; i < FINAL_ENUM_INDICATOR_INDEX; i++) {
-        mfi[index][i] = Indi_MFI::iMFI(symbol, tf, mfi_period, i + MFI_Shift);
+        mfi[index][i] = Indi_MFI::iMFI(symbol, tf, MFI_Period, i + MFI_Shift);
       }
       success = (bool)mfi[index][CURR];
       break;
@@ -893,7 +802,7 @@ bool UpdateIndicator(Chart *_chart, ENUM_INDICATOR_TYPE type) {
       break;
     case INDI_OSMA: // Calculates the Moving Average of Oscillator indicator.
       for (i = 0; i < FINAL_ENUM_INDICATOR_INDEX; i++) {
-        osma[index][i] = Indi_OsMA::iOsMA(symbol, tf, OSMA_Period_Fast, OSMA_Period_Slow, OSMA_Period_Signal, OSMA_Applied_Price, i);
+        osma[index][i] = Indi_OsMA::iOsMA(symbol, tf, OsMA_Period_Fast, OsMA_Period_Slow, OsMA_Period_Signal, OsMA_Applied_Price, i);
       }
       success = (bool) osma[index][CURR];
       break;
@@ -901,7 +810,7 @@ bool UpdateIndicator(Chart *_chart, ENUM_INDICATOR_TYPE type) {
       // int rsi_period = RSI_Period; // Not used at the moment.
       // sid = GetStrategyViaIndicator(RSI, tf); rsi_period = info[sid][CUSTOM_PERIOD]; // Not used at the moment.
       for (i = 0; i < FINAL_ENUM_INDICATOR_INDEX; i++) {
-        rsi[index][i] = Indi_RSI::iRSI(symbol, tf, rsi_period, RSI_Applied_Price, i + RSI_Shift);
+        rsi[index][i] = Indi_RSI::iRSI(symbol, tf, RSI_Period, RSI_Applied_Price, i + RSI_Shift);
         if (rsi[index][i] > rsi_stats[index][LINE_UPPER]) rsi_stats[index][LINE_UPPER] = rsi[index][i]; // Calculate maximum value.
         if (rsi[index][i] < rsi_stats[index][LINE_LOWER] || rsi_stats[index][LINE_LOWER] == 0) rsi_stats[index][LINE_LOWER] = rsi[index][i]; // Calculate minimum value.
       }
@@ -953,7 +862,7 @@ bool UpdateIndicator(Chart *_chart, ENUM_INDICATOR_TYPE type) {
     case INDI_WPR: // Calculates the  Larry Williams' Percent Range.
       // Update the Larry Williams' Percent Range indicator values.
       for (i = 0; i < FINAL_ENUM_INDICATOR_INDEX; i++) {
-        wpr[index][i] = -Indi_WPR::iWPR(symbol, tf, wpr_period, i + WPR_Shift);
+        wpr[index][i] = -Indi_WPR::iWPR(symbol, tf, WPR_Period, i + WPR_Shift);
       }
       #ifdef __MQL4__
       if (VerboseDebug) PrintFormat("%s: WPR M%d: %s", DateTime::TimeToStr(_chart.GetBarTime()), tf, Array::ArrToString2D(wpr, ",", Digits));
@@ -988,7 +897,7 @@ bool UpdateIndicator(Chart *_chart, ENUM_INDICATOR_TYPE type) {
  */
 int ExecuteOrder(ENUM_ORDER_TYPE cmd, Strategy *_strat, double trade_volume = 0, string order_comment = "", bool retry = true) {
   DEBUG_CHECKPOINT_ADD
-  uint sid = (uint) _strat.GetId();
+  int sid = (int) _strat.GetId();
   bool result = false;
   long order_ticket;
   double trade_volume_max = market.GetVolumeMax();
@@ -998,7 +907,7 @@ int ExecuteOrder(ENUM_ORDER_TYPE cmd, Strategy *_strat, double trade_volume = 0,
 
   // if (VerboseTrace) Print(__FUNCTION__);
   if (trade_volume <= market.GetVolumeMin()) {
-    trade_volume = GetStrategyLotSize(sid, cmd);
+    trade_volume = GetStrategyLotSize(_strat, cmd);
   } else {
     trade_volume = market.NormalizeLots(trade_volume);
   }
@@ -1020,8 +929,8 @@ int ExecuteOrder(ENUM_ORDER_TYPE cmd, Strategy *_strat, double trade_volume = 0,
     Chart::RefreshRates();
     double sl_trail = GetTrailingValue(_trade, cmd, ORDER_SL, sid);
     double tp_trail = GetTrailingValue(_trade, cmd, ORDER_TP, sid);
-    double stoploss = _trade.CalcBestSLTP(sl_trail, StopLossMax, RiskMarginPerOrder, ORDER_SL, cmd, market.GetVolumeMin());
-    double takeprofit = TakeProfitMax > 0 ? _trade.CalcBestSLTP(tp_trail, TakeProfitMax, 0, ORDER_TP, cmd, market.GetVolumeMin()) : tp_trail;
+    double stoploss = _trade.CalcBestSLTP(sl_trail, StopLossMax, ORDER_SL, cmd, market.GetVolumeMin());
+    double takeprofit = TakeProfitMax > 0 ? _trade.CalcBestSLTP(tp_trail, TakeProfitMax, ORDER_TP, cmd, market.GetVolumeMin()) : tp_trail;
     if (sl_trail != stoploss) {
       // @todo: Raise the condition on reaching the max stop loss.
       // @todo: Implement different methods of action.
@@ -1036,7 +945,7 @@ int ExecuteOrder(ENUM_ORDER_TYPE cmd, Strategy *_strat, double trade_volume = 0,
     }
 
     if (RiskMarginPerOrder >= 0) {
-      trade_volume_max = _trade.GetMaxLotSize((uint) StopLossMax, GetRiskMarginPerOrder(), cmd);
+      trade_volume_max = _trade.GetMaxLotSize((unsigned int) StopLossMax, cmd);
       if (trade_volume > trade_volume_max) {
         trade_volume = trade_volume_max;
         Msg::ShowText(
@@ -1173,9 +1082,8 @@ int ExecuteOrder(ENUM_ORDER_TYPE cmd, Strategy *_strat, double trade_volume = 0,
   return (result);
 }
 
-int ExecuteOrder(ENUM_ORDER_TYPE _cmd, uint _sid, double _trade_volume = 0, string _order_comment = "", bool _retry = true) {
-  Strategy *_strat;
-  _strat = ((Strategy *) strats.GetById(_sid));
+int ExecuteOrder(ENUM_ORDER_TYPE _cmd, long _sid, double _trade_volume = 0, string _order_comment = "", bool _retry = true) {
+  Strategy *_strat = ((Strategy *) strats.GetById(_sid));
   return ExecuteOrder(_cmd, _strat, _trade_volume = 0, _order_comment, _retry);
 }
 
@@ -1189,7 +1097,15 @@ bool OpenOrderIsAllowed(ENUM_ORDER_TYPE cmd, Strategy *_strat, double volume = E
   // if (VerboseTrace) Print(__FUNCTION__);
   // total_sl = Orders::TotalSL(); // Convert::ValueToMoney(Orders::TotalSL(ORDER_TYPE_BUY)), Convert::ValueToMoney(Orders::TotalSL(ORDER_TYPE_SELL)
   // total_tp = Orders::TotalTP(); // Convert::ValueToMoney(Orders::TotalSL(ORDER_TYPE_BUY)), Convert::ValueToMoney(Orders::TotalSL(ORDER_TYPE_SELL)
-  if (volume < market.GetVolumeMin()) {
+  if (!_strat.IsEnabled()) {
+    Msg::ShowText(StringFormat("%s: %s: Strategy is disabled.", _strat.GetName(), EnumToString(_strat.GetTf()), _strat.GetId()), "Debug", __FUNCTION__, __LINE__, VerboseDebug);
+    result = false;
+  }
+  else if (_strat.IsSuspended()) {
+    Msg::ShowText(StringFormat("%s: %s: Strategy is suspended.", _strat.GetName(), EnumToString(_strat.GetTf()), _strat.GetId()), "Debug", __FUNCTION__, __LINE__, VerboseDebug);
+    result = false;
+  }
+  else if (volume < market.GetVolumeMin()) {
     last_trace = Msg::ShowText(StringFormat("%s: Lot size = %.2f", _strat.GetName(), volume), "Trace", __FUNCTION__, __LINE__, VerboseTrace);
     result = false;
   } else if (!_strat.Trade().IsOrderAllowed()) {
@@ -1203,7 +1119,7 @@ bool OpenOrderIsAllowed(ENUM_ORDER_TYPE cmd, Strategy *_strat, double volume = E
     //PrintFormat("DEBUG: %s (%d vs %d)", _strat.GetName(), _strat.GetId(), (uint) _strat.GetId());
     OrderQueueAdd((uint) _strat.GetId(), cmd);
     result = false;
-  } else if (GetTotalOrdersByType((uint) _strat.GetId()) >= GetMaxOrdersPerType()) {
+  } else if (GetTotalOrdersByType(_strat) >= GetMaxOrdersPerType()) {
     last_msg = Msg::ShowText(StringFormat("%s: Maximum open and pending orders per type has reached the limit (MaxOrdersPerType).", _strat.GetName()), "Info", __FUNCTION__, __LINE__, VerboseInfo);
     OrderQueueAdd((uint) _strat.GetId(), cmd);
     result = false;
@@ -1254,7 +1170,7 @@ bool CheckProfitFactorLimits(Strategy *_strat) {
   DEBUG_CHECKPOINT_ADD
   //double _pf = _strat.GetProfitFactor(); // @fixme
   uint sid = (uint) _strat.GetId();
-  double _pf = GetStrategyProfitFactor(sid);
+  double _pf = GetStrategyProfitFactor(_strat);
   conf[sid][PROFIT_FACTOR] = _pf;
 
   if (!_strat.IsEnabled()) {
@@ -1312,7 +1228,7 @@ bool CheckSpreadLimit(Strategy *_strat) {
 /**
  * Close order.
  */
-bool CloseOrder(ulong ticket_no = NULL, int reason_id = EMPTY, ENUM_MARKET_EVENT _market_event = C_EVENT_NONE, bool retry = true) {
+bool CloseOrder(unsigned long ticket_no = NULL, int reason_id = EMPTY, ENUM_MARKET_EVENT _market_event = C_EVENT_NONE, bool retry = true) {
   DEBUG_CHECKPOINT_ADD
   bool result = false;
   if (ticket_no == NULL) {
@@ -1326,7 +1242,7 @@ bool CloseOrder(ulong ticket_no = NULL, int reason_id = EMPTY, ENUM_MARKET_EVENT
   }
   #ifdef __profiler__ PROFILER_START #endif
   double close_price = NormalizeDouble(market.GetCloseOffer(), market.GetDigits());
-  result = Order::OrderClose(ticket_no, OrderLots(), close_price, max_order_slippage, Order::GetOrderColor(EMPTY, ColorBuy, ColorSell));
+  result = Order::OrderClose(ticket_no, Order::OrderLots(), close_price, max_order_slippage, Order::GetOrderColor(EMPTY, ColorBuy, ColorSell));
   // if (VerboseTrace) Print(__FUNCTION__ + ": CloseOrder request. Reason: " + reason + "; Result=" + result + " @ " + TimeCurrent() + "(" + TimeToStr(TimeCurrent()) + "), ticket# " + ticket_no);
   if (result) {
     total_orders--;
@@ -1346,11 +1262,11 @@ bool CloseOrder(ulong ticket_no = NULL, int reason_id = EMPTY, ENUM_MARKET_EVENT
   } else {
     err_code = GetLastError();
     if (VerboseErrors) Print(__FUNCTION__, ": Error: Ticket: ", ticket_no, "; Error: ", terminal.GetErrorText(err_code)); // @fixme: CloseOrder: Error: Ticket: 10958; Error: Invalid ticket. OrderClose error 4108.
-    if (VerboseDebug) PrintFormat("Error: OrderClose(%d, %f, %f, %f, %d);", ticket_no, OrderLots(), close_price, max_order_slippage, Order::GetOrderColor(EMPTY, ColorBuy, ColorSell));
+    if (VerboseDebug) PrintFormat("Error: OrderClose(%d, %f, %f, %f, %d);", ticket_no, Order::OrderLots(), close_price, max_order_slippage, Order::GetOrderColor(EMPTY, ColorBuy, ColorSell));
     if (VerboseDebug) Print(__FUNCTION__ + ": " + GetMarketTextDetails());
     Order::OrderPrint();
     if (retry) TaskAddCloseOrder(ticket_no, reason_id); // Add task to re-try.
-    int id = GetIdByMagic();
+    int id = (int) GetIdByMagic();
     if (id < 0) info[id][TOTAL_ERRORS]++;
   } // end-if: !result
   DEBUG_CHECKPOINT_POP
@@ -1364,7 +1280,7 @@ bool CloseOrder(ulong ticket_no = NULL, int reason_id = EMPTY, ENUM_MARKET_EVENT
 double OrderCalc(ulong ticket_no = 0) {
   // OrderClosePrice(), OrderCloseTime(), OrderComment(), OrderCommission(), OrderExpiration(), OrderLots(), OrderOpenPrice(), OrderOpenTime(), OrderPrint(), OrderProfit(), OrderStopLoss(), OrderSwap(), OrderSymbol(), OrderTakeProfit(), OrderTicket(), OrderType()
   if (ticket_no == 0) ticket_no = Order::OrderTicket();
-  int id = GetIdByMagic();
+  int id = (int) GetIdByMagic();
   if (id < 0) return false;
   datetime close_time = Order::OrderCloseTime();
   double profit = Order::GetOrderProfit();
@@ -1405,7 +1321,7 @@ double OrderCalc(ulong ticket_no = 0) {
  *   cmd (int) - trade operation command to close (ORDER_TYPE_SELL/ORDER_TYPE_BUY)
  *   strategy_type (int) - strategy type, see ENUM_STRATEGY_TYPE
  */
-int CloseOrdersByType(ENUM_ORDER_TYPE cmd, ulong strategy_id, ENUM_MARKET_EVENT _close_signal, bool only_profitable = false) {
+int CloseOrdersByType(ENUM_ORDER_TYPE cmd, unsigned long strategy_id, ENUM_MARKET_EVENT _close_signal, bool only_profitable = false) {
    int order;
    int orders_total = 0;
    int order_failed = 0;
@@ -1413,7 +1329,7 @@ int CloseOrdersByType(ENUM_ORDER_TYPE cmd, ulong strategy_id, ENUM_MARKET_EVENT 
    Market::RefreshRates();
    for (order = 0; order < Trade::OrdersTotal(); order++) {
       if (Order::OrderSelect(order, SELECT_BY_POS, MODE_TRADES)) {
-        if ((int) strategy_id == GetIdByMagic() && Order::OrderSymbol() == Symbol() && (ENUM_ORDER_TYPE) OrderType() == cmd) {
+        if ((int) strategy_id == GetIdByMagic() && Order::OrderSymbol() == Symbol() && (ENUM_ORDER_TYPE) Order::OrderType() == cmd) {
           if (only_profitable && Order::GetOrderProfit() < 0) continue;
           if (CloseOrder(NULL, R_CLOSE_SIGNAL, _close_signal)) {
              orders_total++;
@@ -1511,12 +1427,12 @@ Strategy *InitStratByIndiType(ENUM_INDICATOR_TYPE _indi, ENUM_TIMEFRAMES _tf) {
     case INDI_MFI:        return Stg_MFI::Init(_tf);
     case INDI_MOMENTUM:   return Stg_Momentum::Init(_tf);
     case INDI_OBV:        return Stg_OBV::Init(_tf);
-    case INDI_OSMA:       return Stg_OSMA::Init(_tf);
+    case INDI_OSMA:       return Stg_OsMA::Init(_tf);
     case INDI_RSI:        return Stg_RSI::Init(_tf);
     case INDI_RVI:        return Stg_RVI::Init(_tf);
     case INDI_SAR:        return Stg_SAR::Init(_tf);
     case INDI_STDDEV:     return Stg_StdDev::Init(_tf);
-    case INDI_STOCHASTIC: return Stg_Stoch::Init(_tf);
+    case INDI_STOCHASTIC: return Stg_Stochastic::Init(_tf);
     case INDI_WPR:        return Stg_WPR::Init(_tf);
     default:              return NULL;
   }
@@ -1550,9 +1466,8 @@ Strategy *GetStratByIndiType(ENUM_INDICATOR_TYPE _indi, Chart *_chart) {
  *   condition (int) - condition to check by using bitwise AND operation
  *   default_value (bool) - default value to set, if false - return the opposite
  */
-bool CheckMarketEvent(Chart *_chart, ENUM_ORDER_TYPE cmd = EMPTY, ENUM_MARKET_EVENT condition = C_EVENT_NONE,
-       long _bm = EMPTY, double _sl1 = EMPTY, double _sl2 = EMPTY
-  ) {
+bool CheckMarketEvent(Chart *_chart, ENUM_ORDER_TYPE cmd = EMPTY, int condition = C_EVENT_NONE,
+       int _bm = EMPTY, double _sl = EMPTY) {
   DEBUG_CHECKPOINT_ADD
   bool result = false;
 #ifdef __advanced__
@@ -1564,88 +1479,88 @@ bool CheckMarketEvent(Chart *_chart, ENUM_ORDER_TYPE cmd = EMPTY, ENUM_MARKET_EV
   if (VerboseTrace) terminal.Logger().Trace(StringFormat("%s(%s, %d)", EnumToString(cmd), _chart.TfToString(), condition), __FUNCTION_LINE__);
   switch (condition) {
     case C_AC_BUY_SELL:
-      result = GetStratByIndiType(INDI_AC, _chart).SignalOpen(cmd, _bm, _sl1, _sl2);
+      result = GetStratByIndiType(INDI_AC, _chart).SignalOpen(cmd, _bm, _sl);
       break;
     case C_AD_BUY_SELL:
-      result = GetStratByIndiType(INDI_AD, _chart).SignalOpen(cmd, _bm, _sl1, _sl2);
+      result = GetStratByIndiType(INDI_AD, _chart).SignalOpen(cmd, _bm, _sl);
       break;
     case C_ADX_BUY_SELL:
-      result = GetStratByIndiType(INDI_ADX, _chart).SignalOpen(cmd, _bm, _sl1, _sl2);
+      result = GetStratByIndiType(INDI_ADX, _chart).SignalOpen(cmd, _bm, _sl);
       break;
     case C_ALLIGATOR_BUY_SELL:
-      result = GetStratByIndiType(INDI_ALLIGATOR, _chart).SignalOpen(cmd, _bm, _sl1, _sl2);
+      result = GetStratByIndiType(INDI_ALLIGATOR, _chart).SignalOpen(cmd, _bm, _sl);
       break;
     case C_ATR_BUY_SELL:
-      result = GetStratByIndiType(INDI_ATR, _chart).SignalOpen(cmd, _bm, _sl1, _sl2);
+      result = GetStratByIndiType(INDI_ATR, _chart).SignalOpen(cmd, _bm, _sl);
       break;
     case C_AWESOME_BUY_SELL:
-      result = GetStratByIndiType(INDI_AO, _chart).SignalOpen(cmd, _bm, _sl1, _sl2);
+      result = GetStratByIndiType(INDI_AO, _chart).SignalOpen(cmd, _bm, _sl);
       break;
     case C_BANDS_BUY_SELL:
-      result = GetStratByIndiType(INDI_BANDS, _chart).SignalOpen(cmd, _bm, _sl1, _sl2);
+      result = GetStratByIndiType(INDI_BANDS, _chart).SignalOpen(cmd, _bm, _sl);
       break;
     case C_BEARSPOWER_BUY_SELL:
-      result = GetStratByIndiType(INDI_BEARS, _chart).SignalOpen(cmd, _bm, _sl1, _sl2);
+      result = GetStratByIndiType(INDI_BEARS, _chart).SignalOpen(cmd, _bm, _sl);
       break;
     case C_BULLSPOWER_BUY_SELL:
-      result = GetStratByIndiType(INDI_BULLS, _chart).SignalOpen(cmd, _bm, _sl1, _sl2);
+      result = GetStratByIndiType(INDI_BULLS, _chart).SignalOpen(cmd, _bm, _sl);
       break;
     case C_CCI_BUY_SELL:
-      result = GetStratByIndiType(INDI_CCI, _chart).SignalOpen(cmd, _bm, _sl1, _sl2);
+      result = GetStratByIndiType(INDI_CCI, _chart).SignalOpen(cmd, _bm, _sl);
       break;
     case C_DEMARKER_BUY_SELL:
-      result = GetStratByIndiType(INDI_DEMARKER, _chart).SignalOpen(cmd, _bm, _sl1, _sl2);
+      result = GetStratByIndiType(INDI_DEMARKER, _chart).SignalOpen(cmd, _bm, _sl);
       break;
     case C_ENVELOPES_BUY_SELL:
-      result = GetStratByIndiType(INDI_ENVELOPES, _chart).SignalOpen(cmd, _bm, _sl1, _sl2);
+      result = GetStratByIndiType(INDI_ENVELOPES, _chart).SignalOpen(cmd, _bm, _sl);
       break;
     case C_FORCE_BUY_SELL:
-      result = GetStratByIndiType(INDI_FORCE, _chart).SignalOpen(cmd, _bm, _sl1, _sl2);
+      result = GetStratByIndiType(INDI_FORCE, _chart).SignalOpen(cmd, _bm, _sl);
       break;
     case C_FRACTALS_BUY_SELL:
-      result = GetStratByIndiType(INDI_FRACTALS, _chart).SignalOpen(cmd, _bm, _sl1, _sl2);
+      result = GetStratByIndiType(INDI_FRACTALS, _chart).SignalOpen(cmd, _bm, _sl);
       break;
     case C_GATOR_BUY_SELL:
-      result = GetStratByIndiType(INDI_GATOR, _chart).SignalOpen(cmd, _bm, _sl1, _sl2);
+      result = GetStratByIndiType(INDI_GATOR, _chart).SignalOpen(cmd, _bm, _sl);
       break;
     case C_ICHIMOKU_BUY_SELL:
-      result = GetStratByIndiType(INDI_ICHIMOKU, _chart).SignalOpen(cmd, _bm, _sl1, _sl2);
+      result = GetStratByIndiType(INDI_ICHIMOKU, _chart).SignalOpen(cmd, _bm, _sl);
       break;
     case C_MA_BUY_SELL:
-      result = GetStratByIndiType(INDI_MA, _chart).SignalOpen(cmd, _bm, _sl1, _sl2);
+      result = GetStratByIndiType(INDI_MA, _chart).SignalOpen(cmd, _bm, _sl);
       break;
     case C_MACD_BUY_SELL:
-      result = GetStratByIndiType(INDI_MACD, _chart).SignalOpen(cmd, _bm, _sl1, _sl2);
+      result = GetStratByIndiType(INDI_MACD, _chart).SignalOpen(cmd, _bm, _sl);
       break;
     case C_MFI_BUY_SELL:
-      result = GetStratByIndiType(INDI_MFI, _chart).SignalOpen(cmd, _bm, _sl1, _sl2);
+      result = GetStratByIndiType(INDI_MFI, _chart).SignalOpen(cmd, _bm, _sl);
       break;
     case C_OBV_BUY_SELL:
-      result = GetStratByIndiType(INDI_OBV, _chart).SignalOpen(cmd, _bm, _sl1, _sl2);
+      result = GetStratByIndiType(INDI_OBV, _chart).SignalOpen(cmd, _bm, _sl);
       break;
     case C_OSMA_BUY_SELL:
-      result = GetStratByIndiType(INDI_OSMA, _chart).SignalOpen(cmd, _bm, _sl1, _sl2);
+      result = GetStratByIndiType(INDI_OSMA, _chart).SignalOpen(cmd, _bm, _sl);
       break;
     case C_RSI_BUY_SELL:
-      result = GetStratByIndiType(INDI_RSI, _chart).SignalOpen(cmd, _bm, _sl1, _sl2);
+      result = GetStratByIndiType(INDI_RSI, _chart).SignalOpen(cmd, _bm, _sl);
       break;
     case C_RVI_BUY_SELL:
-      result = GetStratByIndiType(INDI_RVI, _chart).SignalOpen(cmd, _bm, _sl1, _sl2);
+      result = GetStratByIndiType(INDI_RVI, _chart).SignalOpen(cmd, _bm, _sl);
       break;
     case C_SAR_BUY_SELL:
-      result = GetStratByIndiType(INDI_SAR, _chart).SignalOpen(cmd, _bm, _sl1, _sl2);
+      result = GetStratByIndiType(INDI_SAR, _chart).SignalOpen(cmd, _bm, _sl);
       break;
     case C_STDDEV_BUY_SELL:
-      result = GetStratByIndiType(INDI_STDDEV, _chart).SignalOpen(cmd, _bm, _sl1, _sl2);
+      result = GetStratByIndiType(INDI_STDDEV, _chart).SignalOpen(cmd, _bm, _sl);
       break;
     case C_STOCHASTIC_BUY_SELL:
-      result = GetStratByIndiType(INDI_STOCHASTIC, _chart).SignalOpen(cmd, _bm, _sl1, _sl2);
+      result = GetStratByIndiType(INDI_STOCHASTIC, _chart).SignalOpen(cmd, _bm, _sl);
       break;
     case C_WPR_BUY_SELL:
-      result = GetStratByIndiType(INDI_WPR, _chart).SignalOpen(cmd, _bm, _sl1, _sl2);
+      result = GetStratByIndiType(INDI_WPR, _chart).SignalOpen(cmd, _bm, _sl);
       break;
     case C_ZIGZAG_BUY_SELL:
-      result = GetStratByIndiType(INDI_ZIGZAG, _chart).SignalOpen(cmd, _bm, _sl1, _sl2);
+      result = GetStratByIndiType(INDI_ZIGZAG, _chart).SignalOpen(cmd, _bm, _sl);
       break;
     case C_MA_FAST_SLOW_OPP: // MA Fast&Slow are in opposite directions.
       UpdateIndicator(_chart, INDI_MA);
@@ -1777,7 +1692,7 @@ bool UpdateTrailingStops(Trade *_trade) {
   double prev_sl, prev_tp;
   double new_sl, new_tp;
   double trail_sl, trail_tp;
-  int i, sid;
+  int sid;
 
    // Check if bar time has been changed since last time.
    /*
@@ -1791,10 +1706,10 @@ bool UpdateTrailingStops(Trade *_trade) {
   #ifdef __profiler__ PROFILER_START #endif
 
    market.RefreshRates();
-   for (i = 0; i < Trade::OrdersTotal(); i++) {
+   for (int i = 0; i < Trade::OrdersTotal(); i++) {
      if (!Order::OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) { continue; }
       if (Order::OrderSymbol() == Symbol() && CheckOurMagicNumber()) {
-        sid = OrderMagicNumber() - MagicNumber;
+        sid = (int) Order::OrderMagicNumber() - MagicNumber;
         // order_stop_loss = NormalizeDouble(Misc::If(Order::OrderDirection(OrderType()) > 0 || OrderStopLoss() != 0.0, OrderStopLoss(), 999999), pip_digits);
         // FIXME
         // Make sure we get the minimum distance to StopLevel and freezing distance.
@@ -1807,9 +1722,9 @@ bool UpdateTrailingStops(Trade *_trade) {
             if (!result && err_code > 0) {
              if (VerboseErrors) Print(__FUNCTION__, ": Error: OrderModify(): [MinimalizeLosses] ", Terminal::GetErrorText(err_code));
                if (VerboseDebug)
-                 Print(__FUNCTION__ + ": Error: OrderModify(", Order::OrderTicket(), ", ", Order::OrderOpenPrice(), ", ", OrderOpenPrice() - Order::OrderCommission() * Point, ", ", OrderTakeProfit(), ", ", 0, ", ", Order::GetOrderColor(EMPTY, ColorBuy, ColorSell), "); ");
+                 Print(__FUNCTION__ + ": Error: OrderModify(", Order::OrderTicket(), ", ", Order::OrderOpenPrice(), ", ", Order::OrderOpenPrice() - Order::OrderCommission() * Point, ", ", Order::OrderTakeProfit(), ", ", 0, ", ", Order::GetOrderColor(EMPTY, ColorBuy, ColorSell), "); ");
             } else {
-              if (VerboseTrace) Print(__FUNCTION__ + ": MinimalizeLosses: ", Order::OrderTypeToString((ENUM_ORDER_TYPE) OrderType()));
+              if (VerboseTrace) Print(__FUNCTION__ + ": MinimalizeLosses: ", Order::OrderTypeToString((ENUM_ORDER_TYPE) Order::OrderType()));
             }
           }
         }
@@ -1826,7 +1741,7 @@ bool UpdateTrailingStops(Trade *_trade) {
           (Order::OrderType() == ORDER_TYPE_BUY && trail_sl < prev_sl) ||
           (Order::OrderType() == ORDER_TYPE_SELL && trail_sl > prev_sl)
         ) {
-          new_sl = _trade.CalcBestSLTP(trail_sl, StopLossMax, RiskMarginPerOrder, ORDER_SL);
+          new_sl = _trade.CalcBestSLTP(trail_sl, StopLossMax, ORDER_SL);
         }
         else {
           new_sl = trail_sl;
@@ -1834,7 +1749,7 @@ bool UpdateTrailingStops(Trade *_trade) {
         if (new_sl != prev_sl) {
           // Re-calculate TP only when SL is changed.
           trail_tp = GetTrailingValue(_trade, Order::OrderType(), ORDER_TP, sid, Order::OrderTakeProfit(), true);
-          new_tp = TakeProfitMax > 0 ? _trade.CalcBestSLTP(trail_tp, TakeProfitMax, 0, ORDER_TP) : trail_tp;
+          new_tp = TakeProfitMax > 0 ? _trade.CalcBestSLTP(trail_tp, TakeProfitMax, ORDER_TP) : trail_tp;
         }
 
         if (!market.TradeOpAllowed(Order::OrderType(), new_sl, new_tp)) {
@@ -1907,13 +1822,13 @@ double GetTrailingValue(Trade *_trade, ENUM_ORDER_TYPE cmd, ENUM_ORDER_PROPERTY_
   Chart *_chart = _strat.Chart();
   ENUM_TIMEFRAMES tf = _chart.GetTf();
   uint period = _chart.TfToIndex();
-  string symbol = existing ? OrderSymbol() : _chart.GetSymbol();
+  string symbol = existing ? Order::OrderSymbol() : _chart.GetSymbol();
   double diff;
   bool one_way; // Move trailing stop only in one mode.
   double new_value = 0;
   double extra_trail = 0;
-  if (existing && TrailingStopAddPerMinute > 0 && OrderOpenTime() > 0) {
-    double min_elapsed = (double) ((TimeCurrent() - OrderOpenTime()) / 60);
+  if (existing && TrailingStopAddPerMinute > 0 && Order::OrderOpenTime() > 0) {
+    double min_elapsed = (double) ((TimeCurrent() - Order::OrderOpenTime()) / 60);
     extra_trail =+ min_elapsed * TrailingStopAddPerMinute;
     if (VerboseDebug) {
       PrintFormat("%s:%d: extra_trail += %g * %g => %g",
@@ -1988,7 +1903,7 @@ double GetTrailingValue(Trade *_trade, ENUM_ORDER_TYPE cmd, ENUM_ORDER_PROPERTY_
      case T2_HALF_PEAK_OPEN:
        if (existing) {
          // Get the number of bars for the tf since open. Zero means that the order was opened during the current bar.
-         int BarShiftOfTradeOpen = iBarShift(symbol, tf, OrderOpenTime(), false);
+         int BarShiftOfTradeOpen = iBarShift(symbol, tf, Order::OrderOpenTime(), false);
          // Get the high price from the bar with the given tf index
          double highest_open = _chart.GetPeakPrice(BarShiftOfTradeOpen + 1, MODE_HIGH);
          double lowest_open = _chart.GetPeakPrice(BarShiftOfTradeOpen + 1, MODE_LOW);
@@ -2198,7 +2113,8 @@ int GetTrailingMethod(int order_type, ENUM_ORDER_PROPERTY_DOUBLE mode) {
   int stop_method = DefaultTrailingStopMethod, profit_method = DefaultTrailingProfitMethod;
   #else
   Strategy *_strat = strats.GetById(order_type);
-  int stop_method = _strat.GetSlMethod(), profit_method = _strat.GetTpMethod();
+  int stop_method = ((Dict<string, int> *) _strat.GetDataSI()).GetByKey("TrailingStopMethod");
+  int profit_method = ((Dict<string, int> *) _strat.GetDataSI()).GetByKey("TrailingProfitMethod");
   #endif
   DEBUG_CHECKPOINT_POP
   return mode == ORDER_TP ? profit_method : stop_method;
@@ -2211,7 +2127,7 @@ int GetTrailingMethod(int order_type, ENUM_ORDER_PROPERTY_DOUBLE mode) {
 int GetTotalOrders(bool ours = true) {
   int order, total = 0;
   for (order = 0; order < Trade::OrdersTotal(); order++) {
-    if (Order::OrderSelect(order, SELECT_BY_POS, MODE_TRADES) && OrderSymbol() == Symbol()) {
+    if (Order::OrderSelect(order, SELECT_BY_POS, MODE_TRADES) && Order::OrderSymbol() == Symbol()) {
       if (CheckOurMagicNumber()) {
         if (ours) total++;
       } else {
@@ -2224,20 +2140,25 @@ int GetTotalOrders(bool ours = true) {
 }
 
 // Return total number of orders per strategy type. See: ENUM_STRATEGY_TYPE.
-int GetTotalOrdersByType(unsigned int order_type) {
+int GetTotalOrdersByType(Strategy *_strat) {
   int order;
+  int _sid = (int) _strat.GetId();
   static datetime last_access = time_current;
-  if (Cache && open_orders[order_type] > 0 && last_access == time_current) { return open_orders[order_type]; } else { last_access = time_current; }; // Return cached if available.
-  open_orders[order_type] = 0;
+  if (_sid < 0 || _sid >= FINAL_STRATEGY_TYPE_ENTRY) {
+    Msg::ShowText(StringFormat("%s: %s: SID outside of range (%d)!", _strat.GetName(), EnumToString(_strat.GetTf()), _sid), "Error", __FUNCTION__, __LINE__, VerboseErrors);
+    return 0;
+  }
+  if (Cache && open_orders[_sid] > 0 && last_access == time_current) { return open_orders[_sid]; } else { last_access = time_current; }; // Return cached if available.
+  open_orders[_sid] = 0;
   // ArrayFill(open_orders[order_type], 0, ArraySize(open_orders), 0); // Reset open_orders array.
   for (order = 0; order < Trade::OrdersTotal(); order++) {
    if (Order::OrderSelect(order, SELECT_BY_POS, MODE_TRADES)) {
-     if (Order::OrderSymbol() == Symbol() && Order::OrderMagicNumber() == MagicNumber + order_type) {
-       open_orders[order_type]++;
+     if (Order::OrderSymbol() == Symbol() && Order::OrderMagicNumber() == MagicNumber + _sid) {
+       open_orders[_sid]++;
      }
    }
   }
-  return (open_orders[order_type]);
+  return (open_orders[_sid]);
 }
 
 /**
@@ -2284,8 +2205,8 @@ ENUM_ORDER_TYPE GetCmdByOrders() {
 /**
  * For given magic number, check if it is ours.
  */
-bool CheckOurMagicNumber(int magic_number = NULL) {
-  if (magic_number == NULL) magic_number = OrderMagicNumber();
+bool CheckOurMagicNumber(long magic_number = NULL) {
+  if (magic_number == NULL) magic_number = Order::OrderMagicNumber();
   return (magic_number >= MagicNumber && magic_number < MagicNumber + FINAL_STRATEGY_TYPE_ENTRY);
 }
 
@@ -2423,7 +2344,7 @@ unsigned long GetMaxOrders(double volume_size) {
  * Calculate the limit of maximum orders to open per each strategy.
  */
 int GetMaxOrdersPerType() {
-  return MaxOrdersPerType > 0  ? (int)MaxOrdersPerType : (int) fmin(fmax(MathFloor(max_orders / fmax(GetNoOfStrategies(), 1) ), 1) * 2, max_orders);
+  return MaxOrdersPerType > 0  ? (int )MaxOrdersPerType : (int) fmin(fmax(MathFloor(max_orders / fmax(GetNoOfStrategies(), 1) ), 1) * 2, max_orders);
 }
 
 /**
@@ -2468,8 +2389,8 @@ double GetLotSizeAuto(uint _method = 0, bool smooth = true) {
       if (METHOD(LotSizeIncreaseMethod, 3)) if (AccCondition(C_DBAL_LT_WEEKLY))     new_lot_size *= 1.1;
       if (METHOD(LotSizeIncreaseMethod, 4)) if (AccCondition(C_WBAL_LT_MONTHLY))    new_lot_size *= 1.1;
       if (METHOD(LotSizeIncreaseMethod, 5)) if (AccCondition(C_ACC_IN_TREND))       new_lot_size *= 1.1;
-      if (METHOD(LotSizeIncreaseMethod, 6)) if (AccCondition(C_ACC_CDAY_IN_LOSS))   new_lot_size *= 1.1;
-      if (METHOD(LotSizeIncreaseMethod, 7)) if (AccCondition(C_ACC_PDAY_IN_LOSS))   new_lot_size *= 1.1;
+      //if (METHOD(LotSizeIncreaseMethod, 6)) if (AccCondition(C_ACC_CDAY_IN_LOSS))   new_lot_size *= 1.1;
+      //if (METHOD(LotSizeIncreaseMethod, 7)) if (AccCondition(C_ACC_PDAY_IN_LOSS))   new_lot_size *= 1.1;
     }
     // --
     if (LotSizeDecreaseMethod != 0) {
@@ -2479,8 +2400,8 @@ double GetLotSizeAuto(uint _method = 0, bool smooth = true) {
       if (METHOD(LotSizeDecreaseMethod, 3)) if (AccCondition(C_DBAL_GT_WEEKLY))     new_lot_size *= 0.9;
       if (METHOD(LotSizeDecreaseMethod, 4)) if (AccCondition(C_WBAL_GT_MONTHLY))    new_lot_size *= 0.9;
       if (METHOD(LotSizeDecreaseMethod, 5)) if (AccCondition(C_ACC_IN_NON_TREND))   new_lot_size *= 0.9;
-      if (METHOD(LotSizeDecreaseMethod, 6)) if (AccCondition(C_ACC_CDAY_IN_PROFIT)) new_lot_size *= 0.9;
-      if (METHOD(LotSizeDecreaseMethod, 7)) if (AccCondition(C_ACC_PDAY_IN_PROFIT)) new_lot_size *= 0.9;
+      //if (METHOD(LotSizeDecreaseMethod, 6)) if (AccCondition(C_ACC_CDAY_IN_PROFIT)) new_lot_size *= 0.9;
+      //if (METHOD(LotSizeDecreaseMethod, 7)) if (AccCondition(C_ACC_PDAY_IN_PROFIT)) new_lot_size *= 0.9;
     }
   }
   #endif
@@ -2565,8 +2486,8 @@ double GetAutoRiskRatio() {
     if (METHOD(RiskRatioIncreaseMethod, 3)) if (AccCondition(C_DBAL_LT_WEEKLY))     { new_ea_risk_ratio *= 1.1; rr_text += "+"+last_cname+s; }
     if (METHOD(RiskRatioIncreaseMethod, 4)) if (AccCondition(C_WBAL_GT_MONTHLY))    { new_ea_risk_ratio *= 1.1; rr_text += "+"+last_cname+s; }
     if (METHOD(RiskRatioIncreaseMethod, 5)) if (AccCondition(C_ACC_IN_TREND))       { new_ea_risk_ratio *= 1.1; rr_text += "+"+last_cname+s; }
-    if (METHOD(RiskRatioIncreaseMethod, 6)) if (AccCondition(C_ACC_CDAY_IN_PROFIT)) { new_ea_risk_ratio *= 1.1; rr_text += "+"+last_cname+s; }
-    if (METHOD(RiskRatioIncreaseMethod, 7)) if (AccCondition(C_ACC_PDAY_IN_PROFIT)) { new_ea_risk_ratio *= 1.1; rr_text += "+"+last_cname+s; }
+    //if (METHOD(RiskRatioIncreaseMethod, 6)) if (AccCondition(C_ACC_CDAY_IN_PROFIT)) { new_ea_risk_ratio *= 1.1; rr_text += "+"+last_cname+s; }
+    //if (METHOD(RiskRatioIncreaseMethod, 7)) if (AccCondition(C_ACC_PDAY_IN_PROFIT)) { new_ea_risk_ratio *= 1.1; rr_text += "+"+last_cname+s; }
   }
   // --
   if (RiskRatioDecreaseMethod != 0) {
@@ -2576,8 +2497,8 @@ double GetAutoRiskRatio() {
     if (METHOD(RiskRatioDecreaseMethod, 3)) if (AccCondition(C_DBAL_GT_WEEKLY))     { new_ea_risk_ratio *= 0.9; rr_text += "-"+last_cname+s; }
     if (METHOD(RiskRatioDecreaseMethod, 4)) if (AccCondition(C_WBAL_LT_MONTHLY))    { new_ea_risk_ratio *= 0.9; rr_text += "-"+last_cname+s; }
     if (METHOD(RiskRatioDecreaseMethod, 5)) if (AccCondition(C_ACC_IN_NON_TREND))   { new_ea_risk_ratio *= 0.9; rr_text += "-"+last_cname+s; }
-    if (METHOD(RiskRatioDecreaseMethod, 6)) if (AccCondition(C_ACC_CDAY_IN_LOSS))   { new_ea_risk_ratio *= 0.9; rr_text += "-"+last_cname+s; }
-    if (METHOD(RiskRatioDecreaseMethod, 7)) if (AccCondition(C_ACC_PDAY_IN_LOSS))   { new_ea_risk_ratio *= 0.9; rr_text += "-"+last_cname+s; }
+    //if (METHOD(RiskRatioDecreaseMethod, 6)) if (AccCondition(C_ACC_CDAY_IN_LOSS))   { new_ea_risk_ratio *= 0.9; rr_text += "-"+last_cname+s; }
+    //if (METHOD(RiskRatioDecreaseMethod, 7)) if (AccCondition(C_ACC_PDAY_IN_LOSS))   { new_ea_risk_ratio *= 0.9; rr_text += "-"+last_cname+s; }
   }
   String::RemoveSepChar(rr_text, s);
 
@@ -2606,7 +2527,7 @@ double GetRiskRatio() {
 void StartNewHour(Trade *_trade) {
   #ifdef __profiler__ PROFILER_START #endif
 
-  CheckHistory(); // Process closed orders for the previous hour.
+  //CheckHistory(); // Process closed orders for the previous hour.
 
   // Process actions.
   CheckAccConditions(_trade.Chart());
@@ -2842,13 +2763,13 @@ bool InitVariables() {
   // @todo Move to method.
   if (market.GetTradeContractSize() <= 0.0) {
     init &= !ValidateSettings;
-    Msg::ShowText(StringFormat("Invalid MODE_LOTSIZE: %g", market.GetTradeContractSize()), "Error", __FUNCTION__, __LINE__, VerboseErrors & ValidateSettings, PrintLogOnChart, ValidateSettings);
+    Msg::ShowText(StringFormat("Invalid MODE_LOTSIZE: %g", market.GetTradeContractSize()), "Error", __FUNCTION__, __LINE__, VerboseErrors, PrintLogOnChart, ValidateSettings);
   }
 
   // @todo: Move to method.
   if (market.GetVolumeStep() <= 0.0) {
     init &= !ValidateSettings;
-    Msg::ShowText(StringFormat("Invalid SYMBOL_VOLUME_STEP: %g", market.GetVolumeStep()), "Error", __FUNCTION__, __LINE__, VerboseErrors & ValidateSettings, PrintLogOnChart, ValidateSettings);
+    Msg::ShowText(StringFormat("Invalid SYMBOL_VOLUME_STEP: %g", market.GetVolumeStep()), "Error", __FUNCTION__, __LINE__, VerboseErrors, PrintLogOnChart, ValidateSettings);
     // market.GetLotStepInPts() = 0.01;
   }
 
@@ -2856,7 +2777,7 @@ bool InitVariables() {
   // Check the minimum permitted amount of a lot.
   if (market.GetVolumeMin() <= 0.0) {
     init &= !ValidateSettings;
-    Msg::ShowText(StringFormat("Invalid SYMBOL_VOLUME_MIN: %g", market.GetVolumeMin()), "Error", __FUNCTION__, __LINE__, VerboseErrors & ValidateSettings, PrintLogOnChart, ValidateSettings);
+    Msg::ShowText(StringFormat("Invalid SYMBOL_VOLUME_MIN: %g", market.GetVolumeMin()), "Error", __FUNCTION__, __LINE__, VerboseErrors, PrintLogOnChart, ValidateSettings);
     // market.GetMinLot() = market.GetLotStepInPts();
   }
 
@@ -2864,18 +2785,18 @@ bool InitVariables() {
   // Check the maximum permitted amount of a lot.
   if (market.GetVolumeMax() <= 0.0) {
     init &= !ValidateSettings;
-    Msg::ShowText(StringFormat("Invalid SYMBOL_VOLUME_MAX: %g", market.GetVolumeMax()), "Error", __FUNCTION__, __LINE__, VerboseErrors & ValidateSettings, PrintLogOnChart, ValidateSettings);
+    Msg::ShowText(StringFormat("Invalid SYMBOL_VOLUME_MAX: %g", market.GetVolumeMax()), "Error", __FUNCTION__, __LINE__, VerboseErrors, PrintLogOnChart, ValidateSettings);
   }
 
   // @todo: Move to method.
   if (market.GetVolumeStep() > market.GetVolumeMin()) {
     init &= !ValidateSettings;
-    Msg::ShowText(StringFormat("Step lot is higher than min lot (%g > %g)", market.GetVolumeStep(), market.GetVolumeMin()), "Error", __FUNCTION__, __LINE__, VerboseErrors & ValidateSettings, PrintLogOnChart, ValidateSettings);
+    Msg::ShowText(StringFormat("Step lot is higher than min lot (%g > %g)", market.GetVolumeStep(), market.GetVolumeMin()), "Error", __FUNCTION__, __LINE__, VerboseErrors, PrintLogOnChart, ValidateSettings);
   }
 
   if (Trade::GetMarginRequired(_Symbol) == 0) {
     init &= !ValidateSettings;
-    Msg::ShowText(StringFormat("Invalid MODE_MARGINREQUIRED: %g", Trade::GetMarginRequired(_Symbol)), "Error", __FUNCTION__, __LINE__, VerboseErrors & ValidateSettings, PrintLogOnChart, ValidateSettings);
+    Msg::ShowText(StringFormat("Invalid MODE_MARGINREQUIRED: %g", Trade::GetMarginRequired(_Symbol)), "Error", __FUNCTION__, __LINE__, VerboseErrors, PrintLogOnChart, ValidateSettings);
     // market.GetMarginRequired() = 10; // Fix for 'zero divide' bug when MODE_MARGINREQUIRED is zero.
   }
 
@@ -2885,15 +2806,15 @@ bool InitVariables() {
   init_balance = account.AccountBalance();
   if (init_balance <= 0) {
     Msg::ShowText(StringFormat("Account balance is %g!", init_balance), "Error", __FUNCTION__, __LINE__, VerboseErrors, PrintLogOnChart, ValidateSettings);
-    return (false);
+    init &= !ValidateSettings;
   }
   if (account.AccountEquity() <= 0) {
     Msg::ShowText(StringFormat("Account equity is %g!", account.AccountEquity()), "Error", __FUNCTION__, __LINE__, VerboseErrors, PrintLogOnChart, ValidateSettings);
-    return (false);
+    init &= !ValidateSettings;
   }
   if (account.AccountFreeMargin() <= 0) {
     Msg::ShowText(StringFormat("Account free margin is %g!", account.AccountFreeMargin()), "Error", __FUNCTION__, __LINE__, VerboseErrors, PrintLogOnChart, ValidateSettings);
-    return (false);
+    init &= !ValidateSettings;
   }
   /* @fixme: https://travis-ci.org/EA31337-Tester/EA31337-Lite-Sets/builds/140302386
   if (account.AccountMargin() <= 0) {
@@ -2956,159 +2877,999 @@ bool InitStrategies() {
   #ifdef __profiler__ PROFILER_START #endif
 
   // Initialize/reset strategy arrays.
-  ArrayInitialize(info, 0);  // Reset strategy info.
-  ArrayInitialize(conf, 0);  // Reset strategy configuration.
-  ArrayInitialize(stats, 0); // Reset strategy statistics.
+  ArrayInitialize(info, 0);   // Reset strategy info.
+  ArrayInitialize(conf, 0);   // Reset strategy configuration.
+  ArrayInitialize(stats, 0);  // Reset strategy statistics.
 
-  if ((AC_Active_Tf & M1B) == M1B)   { strats.Add(Stg_AC::Init_M1()); }
-  if ((AC_Active_Tf & M5B) == M5B)   { strats.Add(Stg_AC::Init_M5()); }
-  if ((AC_Active_Tf & M15B) == M15B) { strats.Add(Stg_AC::Init_M15()); }
-  if ((AC_Active_Tf & M30B) == M30B) { strats.Add(Stg_AC::Init_M30()); }
+  if ((AC_Active_Tf & M1B) == M1B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", AC1_CloseCondition);
+    _dict.Set("TrailingStopMethod", AC_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", AC_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_AC::Init(PERIOD_M1, MagicNumber + AC1))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(AC1);
+  }
+  if ((AC_Active_Tf & M5B) == M5B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", AC5_CloseCondition);
+    _dict.Set("TrailingStopMethod", AC_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", AC_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_AC::Init(PERIOD_M5, MagicNumber + AC5))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(AC5);
+  }
+  if ((AC_Active_Tf & M15B) == M15B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", AC15_CloseCondition);
+    _dict.Set("TrailingStopMethod", AC_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", AC_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_AC::Init(PERIOD_M15, MagicNumber + AC15))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(AC15);
+  }
+  if ((AC_Active_Tf & M30B) == M30B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", AC30_CloseCondition);
+    _dict.Set("TrailingStopMethod", AC_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", AC_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_AC::Init(PERIOD_M30, MagicNumber + AC30))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(AC30);
+  }
 
-  if ((AD_Active_Tf & M1B) == M1B) { strats.Add(Stg_AD::Init_M1()); };
-  if ((AD_Active_Tf & M5B) == M5B) { strats.Add(Stg_AD::Init_M5()); };
-  if ((AD_Active_Tf & M15B) == M15B) { strats.Add(Stg_AD::Init_M15()); };
-  if ((AD_Active_Tf & M30B) == M30B) { strats.Add(Stg_AD::Init_M30()); };
+  if ((AD_Active_Tf & M1B) == M1B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", AD1_CloseCondition);
+    _dict.Set("TrailingStopMethod", AD_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", AD_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_AD::Init(PERIOD_M1, MagicNumber + AD1))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(AD1);
+  };
+  if ((AD_Active_Tf & M5B) == M5B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", AD5_CloseCondition);
+    _dict.Set("TrailingStopMethod", AD_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", AD_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_AD::Init(PERIOD_M5, MagicNumber + AD5))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(AD5);
+  };
+  if ((AD_Active_Tf & M15B) == M15B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", AD15_CloseCondition);
+    _dict.Set("TrailingStopMethod", AD_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", AD_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_AD::Init(PERIOD_M15, MagicNumber + AD15))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(AD15);
+  };
+  if ((AD_Active_Tf & M30B) == M30B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", AD30_CloseCondition);
+    _dict.Set("TrailingStopMethod", AD_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", AD_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_AD::Init(PERIOD_M30, MagicNumber + AD30))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(AD30);
+  };
 
-  if ((ADX_Active_Tf & M1B) == M1B) { strats.Add(Stg_ADX::Init_M1()); }
-  if ((ADX_Active_Tf & M5B) == M5B) { strats.Add(Stg_ADX::Init_M5()); }
-  if ((ADX_Active_Tf & M15B) == M15B) { strats.Add(Stg_ADX::Init_M15()); }
-  if ((ADX_Active_Tf & M30B) == M30B) { strats.Add(Stg_ADX::Init_M30()); }
+  if ((ADX_Active_Tf & M1B) == M1B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", ADX1_CloseCondition);
+    _dict.Set("TrailingStopMethod", ADX_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", ADX_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_ADX::Init(PERIOD_M1, MagicNumber + ADX1))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(ADX1);
+  }
+  if ((ADX_Active_Tf & M5B) == M5B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", ADX5_CloseCondition);
+    _dict.Set("TrailingStopMethod", ADX_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", ADX_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_ADX::Init(PERIOD_M5, MagicNumber + ADX5))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(ADX5);
+  }
+  if ((ADX_Active_Tf & M15B) == M15B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", ADX15_CloseCondition);
+    _dict.Set("TrailingStopMethod", ADX_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", ADX_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_ADX::Init(PERIOD_M15, MagicNumber + ADX15))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(ADX15);
+  }
+  if ((ADX_Active_Tf & M30B) == M30B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", ADX30_CloseCondition);
+    _dict.Set("TrailingStopMethod", ADX_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", ADX_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_ADX::Init(PERIOD_M30, MagicNumber + ADX30))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(ADX30);
+  }
 
-  if ((Alligator_Active_Tf & M1B) == M1B) { strats.Add(Stg_Alligator::Init_M1()); }
-  if ((Alligator_Active_Tf & M5B) == M5B) { strats.Add(Stg_Alligator::Init_M5()); }
-  if ((Alligator_Active_Tf & M15B) == M15B) { strats.Add(Stg_Alligator::Init_M15()); }
-  if ((Alligator_Active_Tf & M30B) == M30B) { strats.Add(Stg_Alligator::Init_M30()); }
+  if ((Alligator_Active_Tf & M1B) == M1B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Alligator1_CloseCondition);
+    _dict.Set("TrailingStopMethod", Alligator_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Alligator_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Alligator::Init(PERIOD_M1, MagicNumber + ALLIGATOR1))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(ALLIGATOR1);
+  }
+  if ((Alligator_Active_Tf & M5B) == M5B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Alligator5_CloseCondition);
+    _dict.Set("TrailingStopMethod", Alligator_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Alligator_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Alligator::Init(PERIOD_M5, MagicNumber + ALLIGATOR5))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(ALLIGATOR5);
+  }
+  if ((Alligator_Active_Tf & M15B) == M15B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Alligator15_CloseCondition);
+    _dict.Set("TrailingStopMethod", Alligator_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Alligator_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Alligator::Init(PERIOD_M15, MagicNumber + ALLIGATOR15))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(ALLIGATOR15);
+  }
+  if ((Alligator_Active_Tf & M30B) == M30B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Alligator30_CloseCondition);
+    _dict.Set("TrailingStopMethod", Alligator_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Alligator_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Alligator::Init(PERIOD_M30, MagicNumber + ALLIGATOR30))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(ALLIGATOR30);
+  }
 
-  if ((ATR_Active_Tf & M1B) == M1B) { strats.Add(Stg_ATR::Init_M1()); }
-  if ((ATR_Active_Tf & M5B) == M5B) { strats.Add(Stg_ATR::Init_M5()); }
-  if ((ATR_Active_Tf & M15B) == M15B) { strats.Add(Stg_ATR::Init_M15()); }
-  if ((ATR_Active_Tf & M30B) == M30B) { strats.Add(Stg_ATR::Init_M30()); }
+  if ((ATR_Active_Tf & M1B) == M1B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", ATR1_CloseCondition);
+    _dict.Set("TrailingStopMethod", ATR_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", ATR_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_ATR::Init(PERIOD_M1, MagicNumber + ATR1))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(ATR1);
+  }
+  if ((ATR_Active_Tf & M5B) == M5B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", ATR5_CloseCondition);
+    _dict.Set("TrailingStopMethod", ATR_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", ATR_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_ATR::Init(PERIOD_M5, MagicNumber + ATR5))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(ATR5);
+  }
+  if ((ATR_Active_Tf & M15B) == M15B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", ATR15_CloseCondition);
+    _dict.Set("TrailingStopMethod", ATR_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", ATR_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_ATR::Init(PERIOD_M15, MagicNumber + ATR15))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(ATR15);
+  }
+  if ((ATR_Active_Tf & M30B) == M30B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", ATR30_CloseCondition);
+    _dict.Set("TrailingStopMethod", ATR_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", ATR_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_ATR::Init(PERIOD_M30, MagicNumber + ATR30))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(ATR30);
+  }
 
-  if ((Awesome_Active_Tf & M1B) == M1B) { strats.Add(Stg_Awesome::Init_M1()); }
-  if ((Awesome_Active_Tf & M5B) == M5B) { strats.Add(Stg_Awesome::Init_M5()); }
-  if ((Awesome_Active_Tf & M15B) == M15B) { strats.Add(Stg_Awesome::Init_M15()); }
-  if ((Awesome_Active_Tf & M30B) == M30B) { strats.Add(Stg_Awesome::Init_M30()); }
+  if ((Awesome_Active_Tf & M1B) == M1B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Awesome1_CloseCondition);
+    _dict.Set("TrailingStopMethod", Awesome_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Awesome_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Awesome::Init(PERIOD_M1, MagicNumber + AWESOME1))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(AWESOME1);
+  }
+  if ((Awesome_Active_Tf & M5B) == M5B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Awesome5_CloseCondition);
+    _dict.Set("TrailingStopMethod", Awesome_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Awesome_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Awesome::Init(PERIOD_M5, MagicNumber + AWESOME5))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(AWESOME5);
+  }
+  if ((Awesome_Active_Tf & M15B) == M15B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Awesome15_CloseCondition);
+    _dict.Set("TrailingStopMethod", Awesome_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Awesome_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Awesome::Init(PERIOD_M15, MagicNumber + AWESOME15))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(AWESOME15);
+  }
+  if ((Awesome_Active_Tf & M30B) == M30B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Awesome30_CloseCondition);
+    _dict.Set("TrailingStopMethod", Awesome_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Awesome_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Awesome::Init(PERIOD_M30, MagicNumber + AWESOME30))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(AWESOME30);
+  }
 
-  if ((Bands_Active_Tf & M1B) == M1B) { strats.Add(Stg_Bands::Init_M1()); }
-  if ((Bands_Active_Tf & M5B) == M5B) { strats.Add(Stg_Bands::Init_M5()); }
-  if ((Bands_Active_Tf & M15B) == M15B) { strats.Add(Stg_Bands::Init_M15()); }
-  if ((Bands_Active_Tf & M30B) == M30B) { strats.Add(Stg_Bands::Init_M30()); }
+  if ((Bands_Active_Tf & M1B) == M1B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Bands1_CloseCondition);
+    _dict.Set("TrailingStopMethod", Bands_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Bands_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Bands::Init(PERIOD_M1, MagicNumber + BANDS1))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(BANDS1);
+  }
+  if ((Bands_Active_Tf & M5B) == M5B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Bands5_CloseCondition);
+    _dict.Set("TrailingStopMethod", Bands_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Bands_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Bands::Init(PERIOD_M5, MagicNumber + BANDS5))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(BANDS5);
+  }
+  if ((Bands_Active_Tf & M15B) == M15B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Bands15_CloseCondition);
+    _dict.Set("TrailingStopMethod", Bands_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Bands_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Bands::Init(PERIOD_M15, MagicNumber + BANDS15))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(BANDS15);
+  }
+  if ((Bands_Active_Tf & M30B) == M30B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Bands30_CloseCondition);
+    _dict.Set("TrailingStopMethod", Bands_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Bands_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Bands::Init(PERIOD_M30, MagicNumber + BANDS30))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(BANDS30);
+  }
 
-  if ((BearsPower_Active_Tf & M1B) == M1B) { strats.Add(Stg_BearsPower::Init_M1()); }
-  if ((BearsPower_Active_Tf & M5B) == M5B) { strats.Add(Stg_BearsPower::Init_M5()); }
-  if ((BearsPower_Active_Tf & M15B) == M15B) { strats.Add(Stg_BearsPower::Init_M15()); }
-  if ((BearsPower_Active_Tf & M30B) == M30B) { strats.Add(Stg_BearsPower::Init_M30()); }
+  if ((BearsPower_Active_Tf & M1B) == M1B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", BearsPower1_CloseCondition);
+    _dict.Set("TrailingStopMethod", BearsPower_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", BearsPower_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_BearsPower::Init(PERIOD_M1, MagicNumber + BEARSPOWER1))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(BEARSPOWER1);
+  }
+  if ((BearsPower_Active_Tf & M5B) == M5B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", BearsPower5_CloseCondition);
+    _dict.Set("TrailingStopMethod", BearsPower_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", BearsPower_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_BearsPower::Init(PERIOD_M5, MagicNumber + BEARSPOWER5))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(BEARSPOWER5);
+  }
+  if ((BearsPower_Active_Tf & M15B) == M15B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", BearsPower15_CloseCondition);
+    _dict.Set("TrailingStopMethod", BearsPower_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", BearsPower_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_BearsPower::Init(PERIOD_M15, MagicNumber + BEARSPOWER15))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(BEARSPOWER15);
+  }
+  if ((BearsPower_Active_Tf & M30B) == M30B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", BearsPower30_CloseCondition);
+    _dict.Set("TrailingStopMethod", BearsPower_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", BearsPower_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_BearsPower::Init(PERIOD_M30, MagicNumber + BEARSPOWER30))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(BEARSPOWER30);
+  }
 
-  if ((BullsPower_Active_Tf & M1B) == M1B) { strats.Add(Stg_BullsPower::Init_M1()); }
-  if ((BullsPower_Active_Tf & M5B) == M5B) { strats.Add(Stg_BullsPower::Init_M5()); }
-  if ((BullsPower_Active_Tf & M15B) == M15B) { strats.Add(Stg_BullsPower::Init_M15()); }
-  if ((BullsPower_Active_Tf & M30B) == M30B) { strats.Add(Stg_BullsPower::Init_M30()); }
+  if ((BullsPower_Active_Tf & M1B) == M1B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", BullsPower1_CloseCondition);
+    _dict.Set("TrailingStopMethod", BullsPower_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", BullsPower_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_BullsPower::Init(PERIOD_M1, MagicNumber + BULLSPOWER1))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(BULLSPOWER1);
+  }
+  if ((BullsPower_Active_Tf & M5B) == M5B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", BullsPower5_CloseCondition);
+    _dict.Set("TrailingStopMethod", BullsPower_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", BullsPower_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_BullsPower::Init(PERIOD_M5, MagicNumber + BULLSPOWER5))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(BULLSPOWER5);
+  }
+  if ((BullsPower_Active_Tf & M15B) == M15B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", BullsPower15_CloseCondition);
+    _dict.Set("TrailingStopMethod", BullsPower_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", BullsPower_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_BullsPower::Init(PERIOD_M15, MagicNumber + BULLSPOWER15))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(BULLSPOWER15);
+  }
+  if ((BullsPower_Active_Tf & M30B) == M30B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", BullsPower30_CloseCondition);
+    _dict.Set("TrailingStopMethod", BullsPower_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", BullsPower_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_BullsPower::Init(PERIOD_M30, MagicNumber + BULLSPOWER30))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(BULLSPOWER30);
+  }
 
-  if ((BWMFI_Active_Tf & M1B) == M1B) { strats.Add(Stg_BWMFI::Init_M1()); }
-  if ((BWMFI_Active_Tf & M5B) == M5B) { strats.Add(Stg_BWMFI::Init_M5()); }
-  if ((BWMFI_Active_Tf & M15B) == M15B) { strats.Add(Stg_BWMFI::Init_M15()); }
-  if ((BWMFI_Active_Tf & M30B) == M30B) { strats.Add(Stg_BWMFI::Init_M30()); }
+  if ((BWMFI_Active_Tf & M1B) == M1B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", BWMFI1_CloseCondition);
+    _dict.Set("TrailingStopMethod", BWMFI_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", BWMFI_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_BWMFI::Init(PERIOD_M1, MagicNumber + BWMFI1))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(BWMFI1);
+  }
+  if ((BWMFI_Active_Tf & M5B) == M5B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", BWMFI5_CloseCondition);
+    _dict.Set("TrailingStopMethod", BWMFI_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", BWMFI_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_BWMFI::Init(PERIOD_M5, MagicNumber + BWMFI5))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(BWMFI5);
+  }
+  if ((BWMFI_Active_Tf & M15B) == M15B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", BWMFI15_CloseCondition);
+    _dict.Set("TrailingStopMethod", BWMFI_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", BWMFI_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_BWMFI::Init(PERIOD_M15, MagicNumber + BWMFI15))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(BWMFI15);
+  }
+  if ((BWMFI_Active_Tf & M30B) == M30B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", BWMFI30_CloseCondition);
+    _dict.Set("TrailingStopMethod", BWMFI_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", BWMFI_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_BWMFI::Init(PERIOD_M30, MagicNumber + BWMFI30))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(BWMFI30);
+  }
 
-  if ((CCI_Active_Tf & M1B) == M1B) { strats.Add(Stg_CCI::Init_M1()); }
-  if ((CCI_Active_Tf & M5B) == M5B) { strats.Add(Stg_CCI::Init_M5()); }
-  if ((CCI_Active_Tf & M15B) == M15B) { strats.Add(Stg_CCI::Init_M15()); }
-  if ((CCI_Active_Tf & M30B) == M30B) { strats.Add(Stg_CCI::Init_M30()); }
+  if ((CCI_Active_Tf & M1B) == M1B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", CCI1_CloseCondition);
+    _dict.Set("TrailingStopMethod", CCI_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", CCI_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_CCI::Init(PERIOD_M1, MagicNumber + CCI1))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(CCI1);
+  }
+  if ((CCI_Active_Tf & M5B) == M5B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", CCI5_CloseCondition);
+    _dict.Set("TrailingStopMethod", CCI_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", CCI_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_CCI::Init(PERIOD_M5, MagicNumber + CCI5))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(CCI5);
+  }
+  if ((CCI_Active_Tf & M15B) == M15B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", CCI15_CloseCondition);
+    _dict.Set("TrailingStopMethod", CCI_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", CCI_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_CCI::Init(PERIOD_M15, MagicNumber + CCI15))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(CCI15);
+  }
+  if ((CCI_Active_Tf & M30B) == M30B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", CCI30_CloseCondition);
+    _dict.Set("TrailingStopMethod", CCI_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", CCI_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_CCI::Init(PERIOD_M30, MagicNumber + CCI30))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(CCI30);
+  }
 
-  if ((DeMarker_Active_Tf & M1B) == M1B) { strats.Add(Stg_DeMarker::Init_M1()); }
-  if ((DeMarker_Active_Tf & M5B) == M5B) { strats.Add(Stg_DeMarker::Init_M5()); }
-  if ((DeMarker_Active_Tf & M15B) == M15B) { strats.Add(Stg_DeMarker::Init_M15()); }
-  if ((DeMarker_Active_Tf & M30B) == M30B) { strats.Add(Stg_DeMarker::Init_M30()); }
+  if ((DeMarker_Active_Tf & M1B) == M1B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", DeMarker1_CloseCondition);
+    _dict.Set("TrailingStopMethod", DeMarker_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", DeMarker_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_DeMarker::Init(PERIOD_M1, MagicNumber + DEMARKER1))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(DEMARKER1);
+  }
+  if ((DeMarker_Active_Tf & M5B) == M5B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", DeMarker5_CloseCondition);
+    _dict.Set("TrailingStopMethod", DeMarker_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", DeMarker_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_DeMarker::Init(PERIOD_M5, MagicNumber + DEMARKER5))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(DEMARKER5);
+  }
+  if ((DeMarker_Active_Tf & M15B) == M15B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", DeMarker15_CloseCondition);
+    _dict.Set("TrailingStopMethod", DeMarker_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", DeMarker_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_DeMarker::Init(PERIOD_M15, MagicNumber + DEMARKER15))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(DEMARKER15);
+  }
+  if ((DeMarker_Active_Tf & M30B) == M30B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", DeMarker30_CloseCondition);
+    _dict.Set("TrailingStopMethod", DeMarker_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", DeMarker_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_DeMarker::Init(PERIOD_M30, MagicNumber + DEMARKER30))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(DEMARKER30);
+  }
 
-  if ((Envelopes_Active_Tf & M1B) == M1B) { strats.Add(Stg_Envelopes::Init_M1()); }
-  if ((Envelopes_Active_Tf & M5B) == M5B) { strats.Add(Stg_Envelopes::Init_M5()); }
-  if ((Envelopes_Active_Tf & M15B) == M15B) { strats.Add(Stg_Envelopes::Init_M15()); }
-  if ((Envelopes_Active_Tf & M30B) == M30B) { strats.Add(Stg_Envelopes::Init_M30()); }
+  if ((Envelopes_Active_Tf & M1B) == M1B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Envelopes1_CloseCondition);
+    _dict.Set("TrailingStopMethod", Envelopes_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Envelopes_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Envelopes::Init(PERIOD_M1, MagicNumber + ENVELOPES1))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(ENVELOPES1);
+  }
+  if ((Envelopes_Active_Tf & M5B) == M5B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Envelopes5_CloseCondition);
+    _dict.Set("TrailingStopMethod", Envelopes_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Envelopes_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Envelopes::Init(PERIOD_M5, MagicNumber + ENVELOPES5))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(ENVELOPES5);
+  }
+  if ((Envelopes_Active_Tf & M15B) == M15B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Envelopes15_CloseCondition);
+    _dict.Set("TrailingStopMethod", Envelopes_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Envelopes_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Envelopes::Init(PERIOD_M15, MagicNumber + ENVELOPES15))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(ENVELOPES15);
+  }
+  if ((Envelopes_Active_Tf & M30B) == M30B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Envelopes30_CloseCondition);
+    _dict.Set("TrailingStopMethod", Envelopes_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Envelopes_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Envelopes::Init(PERIOD_M30, MagicNumber + ENVELOPES30))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(ENVELOPES30);
+  }
 
-  if ((Force_Active_Tf & M1B) == M1B) { strats.Add(Stg_Force::Init_M1()); }
-  if ((Force_Active_Tf & M5B) == M5B) { strats.Add(Stg_Force::Init_M5()); }
-  if ((Force_Active_Tf & M15B) == M15B) { strats.Add(Stg_Force::Init_M15()); }
-  if ((Force_Active_Tf & M30B) == M30B) { strats.Add(Stg_Force::Init_M30()); }
+  if ((Force_Active_Tf & M1B) == M1B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Force1_CloseCondition);
+    _dict.Set("TrailingStopMethod", Force_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Force_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Force::Init(PERIOD_M1, MagicNumber + FORCE1))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(FORCE1);
+  }
+  if ((Force_Active_Tf & M5B) == M5B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Force5_CloseCondition);
+    _dict.Set("TrailingStopMethod", Force_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Force_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Force::Init(PERIOD_M5, MagicNumber + FORCE5))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(FORCE5);
+  }
+  if ((Force_Active_Tf & M15B) == M15B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Force15_CloseCondition);
+    _dict.Set("TrailingStopMethod", Force_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Force_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Force::Init(PERIOD_M15, MagicNumber + FORCE15))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(FORCE15);
+  }
+  if ((Force_Active_Tf & M30B) == M30B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Force30_CloseCondition);
+    _dict.Set("TrailingStopMethod", Force_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Force_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Force::Init(PERIOD_M30, MagicNumber + FORCE30))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(FORCE30);
+  }
 
-  if ((Fractals_Active_Tf & M1B) == M1B) { strats.Add(Stg_Fractals::Init_M1()); }
-  if ((Fractals_Active_Tf & M5B) == M5B) { strats.Add(Stg_Fractals::Init_M5()); }
-  if ((Fractals_Active_Tf & M15B) == M15B) { strats.Add(Stg_Fractals::Init_M15()); }
-  if ((Fractals_Active_Tf & M30B) == M30B) { strats.Add(Stg_Fractals::Init_M30()); }
+  if ((Fractals_Active_Tf & M1B) == M1B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Fractals1_CloseCondition);
+    _dict.Set("TrailingStopMethod", Fractals_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Fractals_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Fractals::Init(PERIOD_M1, MagicNumber + FRACTALS1))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(FRACTALS1);
+  }
+  if ((Fractals_Active_Tf & M5B) == M5B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Fractals5_CloseCondition);
+    _dict.Set("TrailingStopMethod", Fractals_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Fractals_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Fractals::Init(PERIOD_M5, MagicNumber + FRACTALS5))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(FRACTALS5);
+  }
+  if ((Fractals_Active_Tf & M15B) == M15B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Fractals15_CloseCondition);
+    _dict.Set("TrailingStopMethod", Fractals_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Fractals_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Fractals::Init(PERIOD_M15, MagicNumber + FRACTALS15))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(FRACTALS15);
+  }
+  if ((Fractals_Active_Tf & M30B) == M30B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Fractals30_CloseCondition);
+    _dict.Set("TrailingStopMethod", Fractals_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Fractals_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Fractals::Init(PERIOD_M30, MagicNumber + FRACTALS30))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(FRACTALS30);
+  }
 
-  if ((Gator_Active_Tf & M1B) == M1B) { strats.Add(Stg_Gator::Init_M1()); }
-  if ((Gator_Active_Tf & M5B) == M5B) { strats.Add(Stg_Gator::Init_M5()); }
-  if ((Gator_Active_Tf & M15B) == M15B) { strats.Add(Stg_Gator::Init_M15()); }
-  if ((Gator_Active_Tf & M30B) == M30B) { strats.Add(Stg_Gator::Init_M30()); }
+  if ((Gator_Active_Tf & M1B) == M1B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Gator1_CloseCondition);
+    _dict.Set("TrailingStopMethod", Gator_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Gator_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Gator::Init(PERIOD_M1, MagicNumber + GATOR1))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(GATOR1);
+  }
+  if ((Gator_Active_Tf & M5B) == M5B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Gator5_CloseCondition);
+    _dict.Set("TrailingStopMethod", Gator_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Gator_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Gator::Init(PERIOD_M5, MagicNumber + GATOR5))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(GATOR5);
+  }
+  if ((Gator_Active_Tf & M15B) == M15B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Gator15_CloseCondition);
+    _dict.Set("TrailingStopMethod", Gator_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Gator_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Gator::Init(PERIOD_M15, MagicNumber + GATOR15))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(GATOR15);
+  }
+  if ((Gator_Active_Tf & M30B) == M30B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Gator30_CloseCondition);
+    _dict.Set("TrailingStopMethod", Gator_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Gator_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Gator::Init(PERIOD_M30, MagicNumber + GATOR30))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(GATOR30);
+  }
 
-  if ((Ichimoku_Active_Tf & M1B) == M1B) { strats.Add(Stg_Ichimoku::Init_M1()); }
-  if ((Ichimoku_Active_Tf & M5B) == M5B) { strats.Add(Stg_Ichimoku::Init_M5()); }
-  if ((Ichimoku_Active_Tf & M15B) == M15B) { strats.Add(Stg_Ichimoku::Init_M15()); }
-  if ((Ichimoku_Active_Tf & M30B) == M30B) { strats.Add(Stg_Ichimoku::Init_M30()); }
+  if ((Ichimoku_Active_Tf & M1B) == M1B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Ichimoku1_CloseCondition);
+    _dict.Set("TrailingStopMethod", Ichimoku_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Ichimoku_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Ichimoku::Init(PERIOD_M1, MagicNumber + ICHIMOKU1))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(ICHIMOKU1);
+  }
+  if ((Ichimoku_Active_Tf & M5B) == M5B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Ichimoku5_CloseCondition);
+    _dict.Set("TrailingStopMethod", Ichimoku_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Ichimoku_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Ichimoku::Init(PERIOD_M5, MagicNumber + ICHIMOKU5))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(ICHIMOKU5);
+  }
+  if ((Ichimoku_Active_Tf & M15B) == M15B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Ichimoku15_CloseCondition);
+    _dict.Set("TrailingStopMethod", Ichimoku_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Ichimoku_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Ichimoku::Init(PERIOD_M15, MagicNumber + ICHIMOKU15))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(ICHIMOKU15);
+  }
+  if ((Ichimoku_Active_Tf & M30B) == M30B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Ichimoku30_CloseCondition);
+    _dict.Set("TrailingStopMethod", Ichimoku_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Ichimoku_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Ichimoku::Init(PERIOD_M30, MagicNumber + ICHIMOKU30))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(ICHIMOKU30);
+  }
 
-  if ((MA_Active_Tf & M1B) == M1B) { strats.Add(Stg_MA::Init_M1()); }
-  if ((MA_Active_Tf & M5B) == M5B) { strats.Add(Stg_MA::Init_M5()); }
-  if ((MA_Active_Tf & M15B) == M15B) { strats.Add(Stg_MA::Init_M15()); }
-  if ((MA_Active_Tf & M30B) == M30B) { strats.Add(Stg_MA::Init_M30()); }
+  if ((MA_Active_Tf & M1B) == M1B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", MA1_CloseCondition);
+    _dict.Set("TrailingStopMethod", MA_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", MA_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_MA::Init(PERIOD_M1, MagicNumber + MA1))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(MA1);
+  }
+  if ((MA_Active_Tf & M5B) == M5B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", MA5_CloseCondition);
+    _dict.Set("TrailingStopMethod", MA_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", MA_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_MA::Init(PERIOD_M5, MagicNumber + MA5))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(MA5);
+  }
+  if ((MA_Active_Tf & M15B) == M15B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", MA15_CloseCondition);
+    _dict.Set("TrailingStopMethod", MA_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", MA_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_MA::Init(PERIOD_M15, MagicNumber + MA15))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(MA15);
+  }
+  if ((MA_Active_Tf & M30B) == M30B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", MA30_CloseCondition);
+    _dict.Set("TrailingStopMethod", MA_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", MA_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_MA::Init(PERIOD_M30, MagicNumber + MA30))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(MA30);
+  }
 
-  if ((MACD_Active_Tf & M1B) == M1B) { strats.Add(Stg_MACD::Init_M1()); }
-  if ((MACD_Active_Tf & M5B) == M5B) { strats.Add(Stg_MACD::Init_M5()); }
-  if ((MACD_Active_Tf & M15B) == M15B) { strats.Add(Stg_MACD::Init_M15()); }
-  if ((MACD_Active_Tf & M30B) == M30B) { strats.Add(Stg_MACD::Init_M30()); }
+  if ((MACD_Active_Tf & M1B) == M1B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", MACD1_CloseCondition);
+    _dict.Set("TrailingStopMethod", MACD_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", MACD_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_MACD::Init(PERIOD_M1, MagicNumber + MACD1))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(MACD1);
+  }
+  if ((MACD_Active_Tf & M5B) == M5B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", MACD5_CloseCondition);
+    _dict.Set("TrailingStopMethod", MACD_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", MACD_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_MACD::Init(PERIOD_M5, MagicNumber + MACD5))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(MACD5);
+  }
+  if ((MACD_Active_Tf & M15B) == M15B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", MACD15_CloseCondition);
+    _dict.Set("TrailingStopMethod", MACD_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", MACD_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_MACD::Init(PERIOD_M15, MagicNumber + MACD15))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(MACD15);
+  }
+  if ((MACD_Active_Tf & M30B) == M30B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", MACD30_CloseCondition);
+    _dict.Set("TrailingStopMethod", MACD_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", MACD_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_MACD::Init(PERIOD_M30, MagicNumber + MACD30))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(MACD30);
+  }
 
-  if ((MFI_Active_Tf & M1B) == M1B) { strats.Add(Stg_MFI::Init_M1()); }
-  if ((MFI_Active_Tf & M5B) == M5B) { strats.Add(Stg_MFI::Init_M5()); }
-  if ((MFI_Active_Tf & M15B) == M15B) { strats.Add(Stg_MFI::Init_M15()); }
-  if ((MFI_Active_Tf & M30B) == M30B) { strats.Add(Stg_MFI::Init_M30()); }
+  if ((MFI_Active_Tf & M1B) == M1B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", MFI1_CloseCondition);
+    _dict.Set("TrailingStopMethod", MFI_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", MFI_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_MFI::Init(PERIOD_M1, MagicNumber + MFI1))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(MFI1);
+  }
+  if ((MFI_Active_Tf & M5B) == M5B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", MFI5_CloseCondition);
+    _dict.Set("TrailingStopMethod", MFI_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", MFI_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_MFI::Init(PERIOD_M5, MagicNumber + MFI5))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(MFI5);
+  }
+  if ((MFI_Active_Tf & M15B) == M15B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", MFI15_CloseCondition);
+    _dict.Set("TrailingStopMethod", MFI_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", MFI_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_MFI::Init(PERIOD_M15, MagicNumber + MFI15))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(MFI15);
+  }
+  if ((MFI_Active_Tf & M30B) == M30B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", MFI30_CloseCondition);
+    _dict.Set("TrailingStopMethod", MFI_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", MFI_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_MFI::Init(PERIOD_M30, MagicNumber + MFI30))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(MFI30);
+  }
 
-  if ((Momentum_Active_Tf & M1B) == M1B) { strats.Add(Stg_Momentum::Init_M1()); }
-  if ((Momentum_Active_Tf & M5B) == M5B) { strats.Add(Stg_Momentum::Init_M5()); }
-  if ((Momentum_Active_Tf & M15B) == M15B) { strats.Add(Stg_Momentum::Init_M15()); }
-  if ((Momentum_Active_Tf & M30B) == M30B) { strats.Add(Stg_Momentum::Init_M30()); }
+  if ((Momentum_Active_Tf & M1B) == M1B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Momentum1_CloseCondition);
+    _dict.Set("TrailingStopMethod", Momentum_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Momentum_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Momentum::Init(PERIOD_M1, MagicNumber + MOM1))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(MOM1);
+  }
+  if ((Momentum_Active_Tf & M5B) == M5B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Momentum5_CloseCondition);
+    _dict.Set("TrailingStopMethod", Momentum_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Momentum_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Momentum::Init(PERIOD_M5, MagicNumber + MOM5))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(MOM5);
+  }
+  if ((Momentum_Active_Tf & M15B) == M15B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Momentum15_CloseCondition);
+    _dict.Set("TrailingStopMethod", Momentum_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Momentum_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Momentum::Init(PERIOD_M15, MagicNumber + MOM15))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(MOM15);
+  }
+  if ((Momentum_Active_Tf & M30B) == M30B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Momentum30_CloseCondition);
+    _dict.Set("TrailingStopMethod", Momentum_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Momentum_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Momentum::Init(PERIOD_M30, MagicNumber + MOM30))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(MOM30);
+  }
 
-  if ((OBV_Active_Tf & M1B) == M1B) { strats.Add(Stg_OBV::Init_M1()); }
-  if ((OBV_Active_Tf & M5B) == M5B) { strats.Add(Stg_OBV::Init_M5()); }
-  if ((OBV_Active_Tf & M15B) == M15B) { strats.Add(Stg_OBV::Init_M15()); }
-  if ((OBV_Active_Tf & M30B) == M30B) { strats.Add(Stg_OBV::Init_M30()); }
+  if ((OBV_Active_Tf & M1B) == M1B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", OBV1_CloseCondition);
+    _dict.Set("TrailingStopMethod", OBV_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", OBV_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_OBV::Init(PERIOD_M1, MagicNumber + OBV1))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(OBV1);
+  }
+  if ((OBV_Active_Tf & M5B) == M5B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", OBV5_CloseCondition);
+    _dict.Set("TrailingStopMethod", OBV_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", OBV_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_OBV::Init(PERIOD_M5, MagicNumber + OBV5))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(OBV5);
+  }
+  if ((OBV_Active_Tf & M15B) == M15B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", OBV15_CloseCondition);
+    _dict.Set("TrailingStopMethod", OBV_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", OBV_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_OBV::Init(PERIOD_M15, MagicNumber + OBV15))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(OBV15);
+  }
+  if ((OBV_Active_Tf & M30B) == M30B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", OBV30_CloseCondition);
+    _dict.Set("TrailingStopMethod", OBV_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", OBV_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_OBV::Init(PERIOD_M30, MagicNumber + OBV30))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(OBV30);
+  }
 
-  if ((OSMA_Active_Tf & M1B) == M1B) { strats.Add(Stg_OSMA::Init_M1()); }
-  if ((OSMA_Active_Tf & M5B) == M5B) { strats.Add(Stg_OSMA::Init_M5()); }
-  if ((OSMA_Active_Tf & M15B) == M15B) { strats.Add(Stg_OSMA::Init_M15()); }
-  if ((OSMA_Active_Tf & M30B) == M30B) { strats.Add(Stg_OSMA::Init_M30()); }
+  if ((OsMA_Active_Tf & M1B) == M1B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", OsMA1_CloseCondition);
+    _dict.Set("TrailingStopMethod", OsMA_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", OsMA_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_OsMA::Init(PERIOD_M1, MagicNumber + OSMA1))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(OSMA1);
+  }
+  if ((OsMA_Active_Tf & M5B) == M5B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", OsMA5_CloseCondition);
+    _dict.Set("TrailingStopMethod", OsMA_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", OsMA_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_OsMA::Init(PERIOD_M5, MagicNumber + OSMA5))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(OSMA5);
+  }
+  if ((OsMA_Active_Tf & M15B) == M15B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", OsMA15_CloseCondition);
+    _dict.Set("TrailingStopMethod", OsMA_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", OsMA_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_OsMA::Init(PERIOD_M15, MagicNumber + OSMA15))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(OSMA15);
+  }
+  if ((OsMA_Active_Tf & M30B) == M30B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", OsMA30_CloseCondition);
+    _dict.Set("TrailingStopMethod", OsMA_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", OsMA_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_OsMA::Init(PERIOD_M30, MagicNumber + OSMA30))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(OSMA30);
+  }
 
-  if ((RSI_Active_Tf & M1B) == M1B)   { strats.Add(Stg_RSI::Init_M1()); };
-  if ((RSI_Active_Tf & M5B) == M5B)   { strats.Add(Stg_RSI::Init_M5()); };
-  if ((RSI_Active_Tf & M15B) == M15B) { strats.Add(Stg_RSI::Init_M15()); };
-  if ((RSI_Active_Tf & M30B) == M30B) { strats.Add(Stg_RSI::Init_M30()); };
+  if ((RSI_Active_Tf & M1B) == M1B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", RSI1_CloseCondition);
+    _dict.Set("TrailingStopMethod", RSI_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", RSI_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_RSI::Init(PERIOD_M1, MagicNumber + RSI1))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(RSI1);
+  };
+  if ((RSI_Active_Tf & M5B) == M5B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", RSI5_CloseCondition);
+    _dict.Set("TrailingStopMethod", RSI_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", RSI_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_RSI::Init(PERIOD_M5, MagicNumber + RSI5))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(RSI5);
+  };
+  if ((RSI_Active_Tf & M15B) == M15B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", RSI15_CloseCondition);
+    _dict.Set("TrailingStopMethod", RSI_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", RSI_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_RSI::Init(PERIOD_M15, MagicNumber + RSI15))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(RSI15);
+  };
+  if ((RSI_Active_Tf & M30B) == M30B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", RSI30_CloseCondition);
+    _dict.Set("TrailingStopMethod", RSI_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", RSI_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_RSI::Init(PERIOD_M30, MagicNumber + RSI30))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(RSI30);
+  };
 
-  if ((RVI_Active_Tf & M1B) == M1B) { strats.Add(Stg_RVI::Init_M1()); }
-  if ((RVI_Active_Tf & M5B) == M5B) { strats.Add(Stg_RVI::Init_M5()); }
-  if ((RVI_Active_Tf & M15B) == M15B) { strats.Add(Stg_RVI::Init_M15()); }
-  if ((RVI_Active_Tf & M30B) == M30B) { strats.Add(Stg_RVI::Init_M30()); }
+  if ((RVI_Active_Tf & M1B) == M1B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", RVI1_CloseCondition);
+    _dict.Set("TrailingStopMethod", RVI_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", RVI_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_RVI::Init(PERIOD_M1, MagicNumber + RVI1))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(RVI1);
+  }
+  if ((RVI_Active_Tf & M5B) == M5B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", RVI5_CloseCondition);
+    _dict.Set("TrailingStopMethod", RVI_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", RVI_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_RVI::Init(PERIOD_M5, MagicNumber + RVI5))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(RVI5);
+  }
+  if ((RVI_Active_Tf & M15B) == M15B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", RVI15_CloseCondition);
+    _dict.Set("TrailingStopMethod", RVI_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", RVI_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_RVI::Init(PERIOD_M15, MagicNumber + RVI15))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(RVI15);
+  }
+  if ((RVI_Active_Tf & M30B) == M30B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", RVI30_CloseCondition);
+    _dict.Set("TrailingStopMethod", RVI_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", RVI_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_RVI::Init(PERIOD_M30, MagicNumber + RVI30))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(RVI30);
+  }
 
-  if ((SAR_Active_Tf & M1B) == M1B) { strats.Add(Stg_SAR::Init_M1()); }
-  if ((SAR_Active_Tf & M5B) == M5B) { strats.Add(Stg_SAR::Init_M5()); }
-  if ((SAR_Active_Tf & M15B) == M15B) { strats.Add(Stg_SAR::Init_M15()); }
-  if ((SAR_Active_Tf & M30B) == M30B) { strats.Add(Stg_SAR::Init_M30()); }
+  if ((SAR_Active_Tf & M1B) == M1B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", SAR1_CloseCondition);
+    _dict.Set("TrailingStopMethod", SAR_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", SAR_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_SAR::Init(PERIOD_M1, MagicNumber + SAR1))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(SAR1);
+  }
+  if ((SAR_Active_Tf & M5B) == M5B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", SAR5_CloseCondition);
+    _dict.Set("TrailingStopMethod", SAR_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", SAR_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_SAR::Init(PERIOD_M5, MagicNumber + SAR5))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(SAR5);
+  }
+  if ((SAR_Active_Tf & M15B) == M15B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", SAR15_CloseCondition);
+    _dict.Set("TrailingStopMethod", SAR_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", SAR_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_SAR::Init(PERIOD_M15, MagicNumber + SAR15))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(SAR15);
+  }
+  if ((SAR_Active_Tf & M30B) == M30B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", SAR30_CloseCondition);
+    _dict.Set("TrailingStopMethod", SAR_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", SAR_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_SAR::Init(PERIOD_M30, MagicNumber + SAR30))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(SAR30);
+  }
 
-  if ((StdDev_Active_Tf & M1B) == M1B) { strats.Add(Stg_StdDev::Init_M1()); }
-  if ((StdDev_Active_Tf & M5B) == M5B) { strats.Add(Stg_StdDev::Init_M5()); }
-  if ((StdDev_Active_Tf & M15B) == M15B) { strats.Add(Stg_StdDev::Init_M15()); }
-  if ((StdDev_Active_Tf & M30B) == M30B) { strats.Add(Stg_StdDev::Init_M30()); }
+  if ((StdDev_Active_Tf & M1B) == M1B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", StdDev1_CloseCondition);
+    _dict.Set("TrailingStopMethod", StdDev_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", StdDev_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_StdDev::Init(PERIOD_M1, MagicNumber + STDDEV1))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(STDDEV1);
+  }
+  if ((StdDev_Active_Tf & M5B) == M5B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", StdDev5_CloseCondition);
+    _dict.Set("TrailingStopMethod", StdDev_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", StdDev_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_StdDev::Init(PERIOD_M5, MagicNumber + STDDEV5))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(STDDEV5);
+  }
+  if ((StdDev_Active_Tf & M15B) == M15B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", StdDev15_CloseCondition);
+    _dict.Set("TrailingStopMethod", StdDev_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", StdDev_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_StdDev::Init(PERIOD_M15, MagicNumber + STDDEV15))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(STDDEV15);
+  }
+  if ((StdDev_Active_Tf & M30B) == M30B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", StdDev30_CloseCondition);
+    _dict.Set("TrailingStopMethod", StdDev_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", StdDev_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_StdDev::Init(PERIOD_M30, MagicNumber + STDDEV30))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(STDDEV30);
+  }
 
-  if ((Stochastic_Active_Tf & M1B) == M1B) { strats.Add(Stg_Stoch::Init_M1()); }
-  if ((Stochastic_Active_Tf & M5B) == M5B) { strats.Add(Stg_Stoch::Init_M5()); }
-  if ((Stochastic_Active_Tf & M15B) == M15B) { strats.Add(Stg_Stoch::Init_M15()); }
-  if ((Stochastic_Active_Tf & M30B) == M30B) { strats.Add(Stg_Stoch::Init_M30()); }
+  if ((Stochastic_Active_Tf & M1B) == M1B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Stochastic1_CloseCondition);
+    _dict.Set("TrailingStopMethod", Stochastic_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Stochastic_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Stochastic::Init(PERIOD_M1, MagicNumber + STOCHASTIC1))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(STOCHASTIC1);
+  }
+  if ((Stochastic_Active_Tf & M5B) == M5B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Stochastic5_CloseCondition);
+    _dict.Set("TrailingStopMethod", Stochastic_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Stochastic_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Stochastic::Init(PERIOD_M5, MagicNumber + STOCHASTIC5))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(STOCHASTIC5);
+  }
+  if ((Stochastic_Active_Tf & M15B) == M15B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Stochastic15_CloseCondition);
+    _dict.Set("TrailingStopMethod", Stochastic_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Stochastic_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Stochastic::Init(PERIOD_M15, MagicNumber + STOCHASTIC15))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(STOCHASTIC15);
+  }
+  if ((Stochastic_Active_Tf & M30B) == M30B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", Stochastic30_CloseCondition);
+    _dict.Set("TrailingStopMethod", Stochastic_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", Stochastic_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_Stochastic::Init(PERIOD_M30, MagicNumber + STOCHASTIC30))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(STOCHASTIC30);
+  }
 
-  if ((WPR_Active_Tf & M1B) == M1B) { strats.Add(Stg_WPR::Init_M1()); }
-  if ((WPR_Active_Tf & M5B) == M5B) { strats.Add(Stg_WPR::Init_M5()); }
-  if ((WPR_Active_Tf & M15B) == M15B) { strats.Add(Stg_WPR::Init_M15()); }
-  if ((WPR_Active_Tf & M30B) == M30B) { strats.Add(Stg_WPR::Init_M30()); }
+  if ((WPR_Active_Tf & M1B) == M1B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", WPR1_CloseCondition);
+    _dict.Set("TrailingStopMethod", WPR_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", WPR_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_WPR::Init(PERIOD_M1, MagicNumber + WPR1))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(WPR1);
+  }
+  if ((WPR_Active_Tf & M5B) == M5B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", WPR5_CloseCondition);
+    _dict.Set("TrailingStopMethod", WPR_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", WPR_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_WPR::Init(PERIOD_M5, MagicNumber + WPR5))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(WPR5);
+  }
+  if ((WPR_Active_Tf & M15B) == M15B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", WPR15_CloseCondition);
+    _dict.Set("TrailingStopMethod", WPR_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", WPR_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_WPR::Init(PERIOD_M15, MagicNumber + WPR15))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(WPR15);
+  }
+  if ((WPR_Active_Tf & M30B) == M30B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", WPR30_CloseCondition);
+    _dict.Set("TrailingStopMethod", WPR_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", WPR_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_WPR::Init(PERIOD_M30, MagicNumber + WPR30))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(WPR30);
+  }
 
-  if ((ZigZag_Active_Tf & M1B) == M1B) { strats.Add(Stg_ZigZag::Init_M1()); }
-  if ((ZigZag_Active_Tf & M5B) == M5B) { strats.Add(Stg_ZigZag::Init_M5()); }
-  if ((ZigZag_Active_Tf & M15B) == M15B) { strats.Add(Stg_ZigZag::Init_M15()); }
-  if ((ZigZag_Active_Tf & M30B) == M30B) { strats.Add(Stg_ZigZag::Init_M30()); }
+  if ((ZigZag_Active_Tf & M1B) == M1B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", ZigZag1_CloseCondition);
+    _dict.Set("TrailingStopMethod", ZigZag_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", ZigZag_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_ZigZag::Init(PERIOD_M1, MagicNumber + ZIGZAG1))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(ZIGZAG1);
+  }
+  if ((ZigZag_Active_Tf & M5B) == M5B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", ZigZag5_CloseCondition);
+    _dict.Set("TrailingStopMethod", ZigZag_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", ZigZag_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_ZigZag::Init(PERIOD_M5, MagicNumber + ZIGZAG5))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(ZIGZAG5);
+  }
+  if ((ZigZag_Active_Tf & M15B) == M15B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", ZigZag15_CloseCondition);
+    _dict.Set("TrailingStopMethod", ZigZag_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", ZigZag_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_ZigZag::Init(PERIOD_M15, MagicNumber + ZIGZAG15))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(ZIGZAG15);
+  }
+  if ((ZigZag_Active_Tf & M30B) == M30B) {
+    Dict<string, int> *_dict = new Dict<string, int>();
+    _dict.Set("CloseCondition", ZigZag30_CloseCondition);
+    _dict.Set("TrailingStopMethod", ZigZag_TrailingStopMethod);
+    _dict.Set("TrailingProfitMethod", ZigZag_TrailingProfitMethod);
+    ((Strategy *) strats.Add(Stg_ZigZag::Init(PERIOD_M30, MagicNumber + ZIGZAG30))).SetData((Dict<string, int> *) _dict);
+    ((Strategy *) strats.GetLastItem()).SetId(ZIGZAG30);
+  }
 
   int sid;
   Strategy *_strat;
@@ -3224,16 +3985,8 @@ void UpdateVariables() {
   total_orders = GetTotalOrders();
   curr_spread = market.GetSpreadInPips();
   // Calculate trend.
-  uint rsi_period;
-  switch (TrendPeriod) {
-    case PERIOD_M1: rsi_period = RSI_Period_M1; break;
-    case PERIOD_M5: rsi_period = RSI_Period_M5; break;
-    case PERIOD_M15: rsi_period = RSI_Period_M15; break;
-    default:
-    case PERIOD_M30: rsi_period = RSI_Period_M30; break;
-  }
   // curr_trend = trade.GetTrend(fabs(TrendMethod), TrendMethod < 0 ? PERIOD_M1 : (ENUM_TIMEFRAMES) NULL);
-  double curr_rsi = Indi_RSI::iRSI(market.GetSymbol(), TrendPeriod, rsi_period, RSI_Applied_Price, 0);
+  double curr_rsi = Indi_RSI::iRSI(market.GetSymbol(), TrendPeriod, RSI_Period, RSI_Applied_Price, 0);
   curr_trend = fabs(curr_rsi - 50) > 10 ? (double) (1.0 / 50) * (curr_rsi - 50) : 0;
   // PrintFormat("Curr Trend: %g (%g: %g/%g), RSI: %g", curr_trend, (double) (1.0 / 50) * (curr_rsi - 50), 1 / 50, curr_rsi - 50, curr_rsi);
   #ifdef __profiler__ PROFILER_STOP #endif
@@ -3426,6 +4179,7 @@ bool AccCondition(int condition = C_ACC_NONE) {
     case C_ACC_IN_NON_TREND:
       last_cname = "InNonTrend";
       return !AccCondition(C_ACC_IN_TREND);
+    /*
     case C_ACC_CDAY_IN_PROFIT: // Check if current day in profit.
       #ifdef __MQL4__
       last_cname = "TodayInProfit";
@@ -3444,6 +4198,8 @@ bool AccCondition(int condition = C_ACC_NONE) {
       last_cname = "TodayInLoss(@FIXME)";
       return False;
       #endif
+    */
+    /*
     case C_ACC_PDAY_IN_PROFIT: // Check if previous day in profit.
       {
         #ifdef __MQL4__
@@ -3470,6 +4226,7 @@ bool AccCondition(int condition = C_ACC_NONE) {
         return False;
         #endif
       }
+    */
     case C_ACC_MAX_ORDERS:
       return total_orders >= max_orders;
     default:
@@ -3577,21 +4334,22 @@ double GetDefaultProfitFactor() {
 /**
  * Calculate lot size for specific strategy.
  */
-double GetStrategyLotSize(int sid, ENUM_ORDER_TYPE cmd) {
-  double trade_lot = (conf[sid][LOT_SIZE] > 0 ? conf[sid][LOT_SIZE] : ea_lot_size) * (conf[sid][FACTOR] > 0 ? conf[sid][FACTOR] : 1.0);
+double GetStrategyLotSize(Strategy *_strat, ENUM_ORDER_TYPE cmd) {
+  double _factor = _strat.GetLotSizeFactor();
+  double _trade_lot = fmax(_strat.GetLotSize(), ea_lot_size) * _factor;
   if (Boosting_Enabled) {
-    double pf = GetStrategyProfitFactor(sid);
+    double pf = GetStrategyProfitFactor(_strat);
     if (pf > 0) {
-      if (StrategyBoostByPF && pf > 1.0) trade_lot *= fmax(GetStrategyProfitFactor(sid), 1.0);
-      else if (StrategyHandicapByPF && pf < 1.0) trade_lot *= fmin(GetStrategyProfitFactor(sid), 1.0);
+      if (StrategyBoostByPF && pf > 1.0) _trade_lot *= fmax(GetStrategyProfitFactor(_strat), 1.0);
+      else if (StrategyHandicapByPF && pf < 1.0) _trade_lot *= fmin(GetStrategyProfitFactor(_strat), 1.0);
     }
     if (Convert::ValueToOp(curr_trend) == cmd && BoostTrendFactor != 1.0) {
       if (VerboseDebug) PrintFormat("%s:%d: %s: Factor: %g, Trade lot: %g, Final trade lot: %g",
-        __FUNCTION__, __LINE__, ((Strategy *) strats.GetById(sid)).GetName(), conf[sid][FACTOR], trade_lot, trade_lot * BoostTrendFactor);
-      trade_lot *= BoostTrendFactor;
+        __FUNCTION__, __LINE__, _strat.GetName(), _factor, _trade_lot, _trade_lot * BoostTrendFactor);
+      _trade_lot *= BoostTrendFactor;
     }
   }
-  return market.NormalizeLots(trade_lot);
+  return market.NormalizeLots(_trade_lot);
 }
 
 /**
@@ -3613,7 +4371,7 @@ string GetStrategyReport(string sep = "\n") {
     id = (int) _strat.GetId();
     if (info[id][TOTAL_ORDERS] > 0) {
       output += StringFormat("Profit factor: %.2f, ",
-                GetStrategyProfitFactor(id));
+                GetStrategyProfitFactor(_strat));
       output += StringFormat("Total net profit: %.2f%s [%+.2f/%-.2f] (%.2fpips), ",
         stats[id][TOTAL_NET_PROFIT], account.GetCurrency(),
         stats[id][TOTAL_GROSS_PROFIT], stats[id][TOTAL_GROSS_LOSS],
@@ -3668,9 +4426,10 @@ void UpdateStrategyLotSize() {
 /**
  * Calculate strategy profit factor.
  */
-double GetStrategyProfitFactor(int sid) {
-  if (info[sid][TOTAL_ORDERS] > InitNoOfOrdersToCalcPF && stats[sid][TOTAL_GROSS_LOSS] < 0) {
-    return stats[sid][TOTAL_GROSS_PROFIT] / -stats[sid][TOTAL_GROSS_LOSS];
+double GetStrategyProfitFactor(Strategy *_strat) {
+  int _sid = (int) _strat.GetId();
+  if (info[_sid][TOTAL_ORDERS] > InitNoOfOrdersToCalcPF && stats[_sid][TOTAL_GROSS_LOSS] < 0) {
+    return stats[_sid][TOTAL_GROSS_PROFIT] / -stats[_sid][TOTAL_GROSS_LOSS];
   } else {
     return 1.0; // @todo?
   }
@@ -3688,7 +4447,7 @@ double GetStrategySignalLevel(ENUM_INDICATOR_TYPE _indicator, ENUM_TIMEFRAMES _t
   for (sid = 0; sid < strats.GetSize(); sid++) {
     _strat = ((Strategy *) strats.GetByIndex(sid));
     if (_strat.Data().GetIndicatorType() == _indicator && _strat.GetTf() == _tf) {
-      _result = _strat.GetSignalLevel1();
+      _result = _strat.GetSignalOpenLevel();
       _found = true;
       break;
     }
@@ -3718,7 +4477,7 @@ ulong GetStrategySignalMethod(ENUM_INDICATOR_TYPE _indicator, ENUM_TIMEFRAMES _t
   for (sid = 0; sid < strats.GetSize(); sid++) {
     _strat = ((Strategy *) strats.GetByIndex(sid));
     if (_strat.Data().GetIndicatorType() == _indicator && _strat.GetTf() == _tf) {
-      _result = _strat.GetSignalOpenMethod1();
+      _result = _strat.GetSignalOpenMethod();
       _found = true;
       break;
     }
@@ -3739,7 +4498,7 @@ ulong GetStrategySignalMethod(ENUM_INDICATOR_TYPE _indicator, ENUM_TIMEFRAMES _t
 /**
  * Fetch strategy timeframe based on the strategy type.
  */
-ENUM_TIMEFRAMES GetStrategyTimeframe(uint _sid) {
+ENUM_TIMEFRAMES GetStrategyTimeframe(long _sid) {
   Strategy *_strat = strats.GetById(_sid);
   return _strat.GetTf();
 }
@@ -3841,9 +4600,9 @@ void ApplyStrategyMultiplierFactor(uint period = DAILY, int direction = 0, doubl
 /**
  * Return strategy id by order magic number.
  */
-int GetIdByMagic(int magic = -1) {
-  if (magic == -1) magic = OrderMagicNumber();
-  int id = magic - MagicNumber;
+long GetIdByMagic(long magic = -1) {
+  if (magic == -1) magic = Order::OrderMagicNumber();
+  long id = magic - MagicNumber;
   return CheckOurMagicNumber(magic) ? id : -1;
 }
 
@@ -4034,7 +4793,7 @@ string DisplayInfoOnChart(bool on_chart = true, string sep = "\n") {
                   // + indent // + "Mini lot: " + MarketInfo(Symbol(), MODE_MINLOT) + "" + sep
                   + indent + "| ------------------------------------------------" + sep
                   + indent + "| STATISTICS:" + sep
-                  + indent + "| " + GetHourlyProfit() + "" + sep
+                  //+ indent + "| " + GetHourlyProfit() + "" + sep
                   + indent + "| " + GetDailyReport() + "" + sep
                   + indent + "| " + GetWeeklyReport() + "" + sep
                   + indent + "| " + GetMonthlyReport() + "" + sep
@@ -4204,7 +4963,7 @@ bool ActionCloseAllProfitableOrders(int reason_id = EMPTY){
   int order, selected_orders = 0;
   double ticket_profit = 0, total_profit = 0;
   for (order = 0; order < Trade::OrdersTotal(); order++) {
-    if (Order::OrderSelect(order, SELECT_BY_POS, MODE_TRADES) && OrderSymbol() == Symbol() && CheckOurMagicNumber())
+    if (Order::OrderSelect(order, SELECT_BY_POS, MODE_TRADES) && Order::OrderSymbol() == Symbol() && CheckOurMagicNumber())
        ticket_profit = Order::GetOrderProfit();
        if (ticket_profit > 0) {
          result = TaskAddCloseOrder(Order::OrderTicket(), reason_id);
@@ -4229,7 +4988,7 @@ bool ActionCloseAllUnprofitableOrders(int reason_id = EMPTY){
   int selected_orders = 0;
   double ticket_profit = 0, total_profit = 0;
   for (int order = 0; order < Trade::OrdersTotal(); order++) {
-    if (Order::OrderSelect(order, SELECT_BY_POS, MODE_TRADES) && OrderSymbol() == Symbol() && CheckOurMagicNumber())
+    if (Order::OrderSelect(order, SELECT_BY_POS, MODE_TRADES) && Order::OrderSymbol() == Symbol() && CheckOurMagicNumber())
        ticket_profit = Order::GetOrderProfit();
        if (ticket_profit < 0) {
          result = TaskAddCloseOrder(Order::OrderTicket(), reason_id);
@@ -4255,7 +5014,7 @@ bool ActionCloseAllOrdersByType(ENUM_ORDER_TYPE cmd = EMPTY, int reason_id = EMP
   int selected_orders = 0;
   double ticket_profit = 0, total_profit = 0;
   for (int order = 0; order < Trade::OrdersTotal(); order++) {
-    if (Order::OrderSelect(order, SELECT_BY_POS, MODE_TRADES) && OrderSymbol() == Symbol() && CheckOurMagicNumber())
+    if (Order::OrderSelect(order, SELECT_BY_POS, MODE_TRADES) && Order::OrderSymbol() == Symbol() && CheckOurMagicNumber())
        if (Order::OrderType() == cmd) {
          TaskAddCloseOrder(Order::OrderTicket(), reason_id);
          selected_orders++;
@@ -4292,7 +5051,7 @@ int ActionCloseAllOrders(int reason_id = EMPTY, bool only_ours = true) {
    int total = Trade::OrdersTotal();
    double total_profit = 0;
    for (int order = 0; order < total; order++) {
-      if (Order::OrderSelect(order, SELECT_BY_POS, MODE_TRADES) && OrderSymbol() == Symbol() && Order::OrderTicket() > 0) {
+      if (Order::OrderSelect(order, SELECT_BY_POS, MODE_TRADES) && Order::OrderSymbol() == Symbol() && Order::OrderTicket() > 0) {
          if (only_ours && !CheckOurMagicNumber()) continue;
          total_profit += Order::GetOrderProfit();
          TaskAddCloseOrder(Order::OrderTicket(), reason_id); // Add task to re-try.
@@ -4484,10 +5243,10 @@ string ReasonIdToText(int rid, ENUM_MARKET_EVENT _market_event = C_EVENT_NONE) {
     case R_WBAL_GT_MONTHLY: output = "Max. weekly balance > max. monthly"; break;
     case R_ACC_IN_TREND: output = "Account in trend"; break;
     case R_ACC_IN_NON_TREND: output = "Account is against trend"; break;
-    case R_ACC_CDAY_IN_PROFIT: output = "Current day in profit"; break;
-    case R_ACC_CDAY_IN_LOSS: output = "Current day in loss"; break;
-    case R_ACC_PDAY_IN_PROFIT: output = "Previous day in profit"; break;
-    case R_ACC_PDAY_IN_LOSS: output = "Previous day in loss"; break;
+    //case R_ACC_CDAY_IN_PROFIT: output = "Current day in profit"; break;
+    //case R_ACC_CDAY_IN_LOSS: output = "Current day in loss"; break;
+    //case R_ACC_PDAY_IN_PROFIT: output = "Previous day in profit"; break;
+    //case R_ACC_PDAY_IN_LOSS: output = "Previous day in loss"; break;
     case R_ACC_MAX_ORDERS: output = "Maximum orders opened"; break;
     case R_ORDER_EXPIRED: output = "Order expired (CloseOrderAfterXHours)"; break;
     case R_OPPOSITE_SIGNAL: output = "Opposite signal"; break;
@@ -4602,7 +5361,7 @@ bool OrderQueueProcess(int method = EMPTY, int filter = EMPTY) {
   bool result = true;
   int queue_size = OrderQueueCount();
   long sorted_queue[][2];
-  int sid;
+  long sid;
   ENUM_ORDER_TYPE cmd;
   datetime time;
   double volume;
@@ -4627,9 +5386,9 @@ bool OrderQueueProcess(int method = EMPTY, int filter = EMPTY) {
     for (int i = 0; i < queue_size; i++) {
       selected_qid = (int) sorted_queue[i][1];
       cmd = (ENUM_ORDER_TYPE) order_queue[selected_qid][Q_CMD];
-      sid = (int) order_queue[selected_qid][Q_SID];
+      sid = order_queue[selected_qid][Q_SID];
       time = (datetime) order_queue[selected_qid][Q_TIME];
-      volume = GetStrategyLotSize(sid, cmd);
+      volume = GetStrategyLotSize(strats.GetById(sid), cmd);
       if (!OpenOrderCondition(cmd, sid, time, filter)) continue;
       if (OpenOrderIsAllowed(cmd, strats.GetById(sid), volume)) {
         string comment = GetStrategyComment(strats.GetById(sid)) + " [AIQueued]";
@@ -4644,7 +5403,7 @@ bool OrderQueueProcess(int method = EMPTY, int filter = EMPTY) {
 /**
  * Check for the market condition to filter out the order queue.
  */
-bool OpenOrderCondition(ENUM_ORDER_TYPE cmd, int sid, datetime time, int method) {
+bool OpenOrderCondition(ENUM_ORDER_TYPE cmd, long sid, datetime time, int method) {
   DEBUG_CHECKPOINT_ADD
   bool result = true;
   ENUM_TIMEFRAMES tf = GetStrategyTimeframe(sid);
@@ -4662,10 +5421,10 @@ bool OpenOrderCondition(ENUM_ORDER_TYPE cmd, int sid, datetime time, int method)
     if (METHOD(method,1)) result &= (cmd == ORDER_TYPE_BUY && qclose < _chart.GetClose()) || (cmd == ORDER_TYPE_SELL && qclose > _chart.GetClose());
     if (METHOD(method,2)) result &= (cmd == ORDER_TYPE_BUY && qlowest < _chart.GetLow()) || (cmd == ORDER_TYPE_SELL && qlowest > _chart.GetLow());
     if (METHOD(method,3)) result &= (cmd == ORDER_TYPE_BUY && qhighest > _chart.GetHigh()) || (cmd == ORDER_TYPE_SELL && qhighest < _chart.GetHigh());
-    if (METHOD(method,4)) result &= UpdateIndicator(_chart, INDI_SAR) && CheckMarketEvent(_chart, cmd, C_SAR_BUY_SELL, 0, 0, 0);
-    if (METHOD(method,5)) result &= UpdateIndicator(_chart, INDI_DEMARKER) && CheckMarketEvent(_chart, cmd, C_DEMARKER_BUY_SELL, 0, 0.5, 0);
-    if (METHOD(method,6)) result &= UpdateIndicator(_chart, INDI_RSI) && CheckMarketEvent(_chart, cmd, C_RSI_BUY_SELL, 0, 30, 0);
-    if (METHOD(method,7)) result &= UpdateIndicator(_chart, INDI_MA) && CheckMarketEvent(_chart, cmd, C_MA_BUY_SELL, 0, 0, 0);
+    if (METHOD(method,4)) result &= UpdateIndicator(_chart, INDI_SAR) && CheckMarketEvent(_chart, cmd, C_SAR_BUY_SELL, 0, 0);
+    if (METHOD(method,5)) result &= UpdateIndicator(_chart, INDI_DEMARKER) && CheckMarketEvent(_chart, cmd, C_DEMARKER_BUY_SELL, 0, 0.5);
+    if (METHOD(method,6)) result &= UpdateIndicator(_chart, INDI_RSI) && CheckMarketEvent(_chart, cmd, C_RSI_BUY_SELL, 0, 30);
+    if (METHOD(method,7)) result &= UpdateIndicator(_chart, INDI_MA) && CheckMarketEvent(_chart, cmd, C_MA_BUY_SELL, 0, 0);
   }
   return (result);
 }
@@ -4685,8 +5444,8 @@ int GetOrderQueueKeyValue(int sid, int method, int qid) {
     case  4: key = (int) (stats[sid][TOTAL_NET_PROFIT] * 10); break; // Has good results.
     case  5: key = (int) (_strat.GetMaxSpread() * 10); break;
     case  6: key = GetStrategyTimeframe(sid); break;
-    case  7: key = (int) (GetStrategyProfitFactor(sid) * 100); break;
-    case  8: key = (int) (GetStrategyLotSize(sid, (ENUM_ORDER_TYPE) order_queue[qid][Q_CMD]) * 100); break;
+    case  7: key = (int) (GetStrategyProfitFactor(_strat) * 100); break;
+    case  8: key = (int) (GetStrategyLotSize(_strat, (ENUM_ORDER_TYPE) order_queue[qid][Q_CMD]) * 100); break;
     case  9: key = (int) stats[sid][TOTAL_GROSS_PROFIT]; break;
     case 10: key = info[sid][TOTAL_ORDERS]; break; // --7846
     case 11: key -= info[sid][TOTAL_ORDERS_LOSS]; break; // --7662 TODO: To test.
@@ -4895,7 +5654,7 @@ bool TaskRun(int job_id) {
        // double volume = todo_queue[job_id][4]; // FIXME: Not used as we can't use double to integer array.
        sid = todo_queue[job_id][5];
        // string order_comment = todo_queue[job_id][6]; // FIXME: Not used as we can't use double to integer array.
-       result = ExecuteOrder((ENUM_ORDER_TYPE) cmd, sid, EMPTY, "", false);
+       result = ExecuteOrder((ENUM_ORDER_TYPE) cmd, (long) sid, EMPTY, "", false);
       break;
     case TASK_ORDER_CLOSE:
         reason_id = todo_queue[job_id][3];

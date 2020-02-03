@@ -181,19 +181,19 @@ extern ENUM_ACC_CONDITION Account_Condition_22      = 22; // 22. Account conditi
 extern ENUM_MARKET_CONDITION Market_Condition_22    = 0; // 22. Market condition
 extern ENUM_ACTION_TYPE Action_On_Condition_22      = 0; // 22. Action to take
 
-extern ENUM_ACC_CONDITION Account_Condition_23      = 23; // 23. Account condition
+extern ENUM_ACC_CONDITION Account_Condition_23      = 0; // 23. Account condition
 extern ENUM_MARKET_CONDITION Market_Condition_23    = 0; // 23. Market condition
 extern ENUM_ACTION_TYPE Action_On_Condition_23      = 0; // 23. Action to take
 
-extern ENUM_ACC_CONDITION Account_Condition_24      = 24; // 24. Account condition
+extern ENUM_ACC_CONDITION Account_Condition_24      = 0; // 24. Account condition
 extern ENUM_MARKET_CONDITION Market_Condition_24    = 0; // 24. Market condition
 extern ENUM_ACTION_TYPE Action_On_Condition_24      = 0; // 24. Action to take
 
-extern ENUM_ACC_CONDITION Account_Condition_25      = 25; // 25. Account condition
+extern ENUM_ACC_CONDITION Account_Condition_25      = 0; // 25. Account condition
 extern ENUM_MARKET_CONDITION Market_Condition_25    = 0; // 25. Market condition
 extern ENUM_ACTION_TYPE Action_On_Condition_25      = 0; // 25. Action to take
 
-extern ENUM_ACC_CONDITION Account_Condition_26      = 26; // 26. Account condition
+extern ENUM_ACC_CONDITION Account_Condition_26      = 0; // 26. Account condition
 extern ENUM_MARKET_CONDITION Market_Condition_26    = 0; // 26. Market condition
 extern ENUM_ACTION_TYPE Action_On_Condition_26      = 0; // 26. Action to take
 
